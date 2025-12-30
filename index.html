@@ -2,90 +2,123 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Drone Portal AR Card</title>
+  <title>AR Magic Portal</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   
+  <script>
+    /* COMPONENT 1: THE MASK
+      Applied to the plane representing the "Glass" of the window.
+      It doesn't render any color (invisible), but it updates the Stencil Buffer.
+    */
+    AFRAME.registerComponent('stencil-mask', {
+      init: function() {
+        const mesh = this.el.getObject3D('mesh');
+        if (mesh) {
+          // This ensures this plane renders BEFORE the sphere
+          this.el.object3D.renderOrder = 1;
+          
+          const mat = mesh.material;
+          mat.colorWrite = false;        // Do not draw the color (invisible)
+          mat.depthWrite = false;        // Do not block objects behind it
+          mat.stencilWrite = true;       // Enable stencil logic
+          mat.stencilRef = 1;            // Set value to 1
+          mat.stencilFunc = THREE.AlwaysStencilFunc; // Always pass
+          mat.stencilZPass = THREE.ReplaceStencilOp; // Replace 0 with 1 in the buffer
+        }
+      }
+    });
+
+    /* COMPONENT 2: THE CONTENT
+      Applied to the 360 Sphere.
+      It checks the Stencil Buffer and only draws where the value is 1.
+    */
+    AFRAME.registerComponent('stencil-content', {
+      init: function() {
+        this.el.addEventListener('loaded', () => {
+          const mesh = this.el.getObject3D('mesh');
+          if (mesh) {
+            // Render AFTER the mask
+            this.el.object3D.renderOrder = 2;
+            
+            const mat = mesh.material;
+            mat.stencilWrite = true;
+            mat.stencilRef = 1;
+            mat.stencilFunc = THREE.EqualStencilFunc; // Only draw if stencil == 1
+            mat.side = 'back'; // Draw the inside of the sphere
+          }
+        });
+      }
+    });
+  </script>
+
   <style>
     body { margin: 0; overflow: hidden; }
-    /* Overlay to help the user understand what to do */
-    #instruction-overlay {
+    /* Scanning UI */
+    #ui-layer {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; 
-      z-index: 999; color: white; font-family: sans-serif; font-size: 1.5em; text-align: center;
-      pointer-events: none; /* Let clicks pass through */
-      transition: opacity 0.5s;
+      pointer-events: none; z-index: 999;
+      display: flex; justify-content: center; align-items: center;
+      background: rgba(0,0,0,0.5); transition: opacity 0.5s;
     }
     .hidden { opacity: 0; }
+    .instruction { 
+      color: white; font-family: sans-serif; font-size: 1.2rem; 
+      text-align: center; border: 2px solid white; padding: 20px; border-radius: 10px;
+    }
   </style>
 </head>
 <body>
-  <div id="instruction-overlay">
-    <p>Point camera at the card<br>to open the portal.</p>
+
+  <div id="ui-layer">
+    <div class="instruction">Scan Business Card<br>to Open Portal</div>
   </div>
 
   <a-scene 
     mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.0005; filterBeta: 0.005;" 
     color-space="sRGB" 
-    renderer="colorManagement: true, physicallyCorrectLights, antialias: true"
+    renderer="colorManagement: true, physicallyCorrectLights, alpha: true"
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
 
     <a-assets>
-      <img id="drone-360-tex" src="./DJI_0946.JPG" crossorigin="anonymous">
+      <img id="drone-360" src="./DJI_0946.JPG" crossorigin="anonymous">
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
     <a-entity mindar-image-target="targetIndex: 0">
       
-      <a-plane position="0 0 0" width="1" height="0.6" rotation="0 0 0"
-               material="color: #ffffff; opacity: 0.2; metalness: 0.8; roughness: 0.2; transparent: true">
-      </a-plane>
+      <a-plane 
+        stencil-mask 
+        position="0 0 0" 
+        width="1" height="0.6"> </a-plane>
 
+      <a-sphere 
+        stencil-content
+        src="#drone-360" 
+        radius="30" 
+        position="0 0 0"
+        rotation="0 -90 0"> </a-sphere>
 
-      <a-box position="0 0.31 0" width="1.04" height="0.02" depth="0.05" color="#333"></a-box>
-      <a-box position="0 -0.31 0" width="1.04" height="0.02" depth="0.05" color="#333"></a-box>
-      <a-box position="-0.51 0 0" width="0.02" height="0.6" depth="0.05" color="#333"></a-box>
-      <a-box position="0.51 0 0" width="0.02" height="0.6" depth="0.05" color="#333"></a-box>
-
-
-      <a-entity 
-        id="portal-world"
-        visible="false" position="0 0 -40">
-        
-        <a-sphere 
-          radius="50" 
-          src="#drone-360-tex" 
-          /* side: back IS CRITICAL. It renders the image on the *inside* of the sphere. */
-          side="back" 
-          /* segments: Higher numbers = smoother curved image, but more processing power */
-          segments-height="64" segments-width="64"
-          shader="flat" /* Flat shader means lighting doesn't affect the photo itself */
-          /* Rotation: Adjust Y rotation to center the best part of your drone shot */
-          rotation="0 -90 0"> 
-        </a-sphere>
+      <a-entity position="0 0 0.01"> <a-box color="black" position="0 0.3 0" width="1.02" height="0.02" depth="0.02"></a-box>
+        <a-box color="black" position="0 -0.3 0" width="1.02" height="0.02" depth="0.02"></a-box>
+        <a-box color="black" position="-0.5 0 0" width="0.02" height="0.6" depth="0.02"></a-box>
+        <a-box color="black" position="0.5 0 0" width="0.02" height="0.6" depth="0.02"></a-box>
       </a-entity>
 
     </a-entity>
   </a-scene>
 
   <script>
-    // Simple UX to hide instructions and reveal the portal when tracked
+    const ui = document.querySelector('#ui-layer');
     const target = document.querySelector('[mindar-image-target]');
-    const overlay = document.querySelector('#instruction-overlay');
-    const portalWorld = document.querySelector('#portal-world');
-
-    target.addEventListener("targetFound", event => {
-      overlay.classList.add('hidden');
-      // Make the sphere visible only when tracking starts
-      portalWorld.setAttribute('visible', 'true');
+    
+    target.addEventListener("targetFound", () => {
+      ui.classList.add('hidden');
     });
-
-    target.addEventListener("targetLost", event => {
-      overlay.classList.remove('hidden');
-      // Hide it again to save resources when not looking
-      portalWorld.setAttribute('visible', 'false');
+    target.addEventListener("targetLost", () => {
+      ui.classList.remove('hidden');
     });
   </script>
 </body>
