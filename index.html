@@ -2,124 +2,90 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR Portfolio Portal</title>
+  <title>Drone Portal AR Card</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
-
+  
   <style>
     body { margin: 0; overflow: hidden; }
-    /* The "Tap to Start" overlay for audio/video permissions */
-    #start-overlay {
+    /* Overlay to help the user understand what to do */
+    #instruction-overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; 
-      z-index: 99999; color: white; font-family: sans-serif; font-size: 1.2em;
-      cursor: pointer;
+      background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; 
+      z-index: 999; color: white; font-family: sans-serif; font-size: 1.5em; text-align: center;
+      pointer-events: none; /* Let clicks pass through */
+      transition: opacity 0.5s;
     }
+    .hidden { opacity: 0; }
   </style>
-  <script>
-    // Component to handle clicking on menu items
-    AFRAME.registerComponent('link-handler', {
-      init: function () {
-        // When a user clicks an entity with this component
-        this.el.addEventListener('click', (e) => {
-          // Get the URL defined in the 'data-url' attribute
-          const url = this.el.getAttribute('data-url');
-          if (url) {
-            // Open URL in new tab
-            window.open(url, '_blank');
-          }
-        });
-        
-        // Hover effects for desktop testing (optional)
-        this.el.addEventListener('mouseenter', () => {
-           this.el.setAttribute('scale', '1.1 1.1 1.1'); 
-           this.el.children[0].setAttribute('material', 'color', '#00ffff'); // Turn bright cyan
-        });
-        this.el.addEventListener('mouseleave', () => {
-           this.el.setAttribute('scale', '1 1 1');
-           this.el.children[0].setAttribute('material', 'color', '#0088ff'); // Back to normal blue
-        });
-      }
-    });
-  </script>
 </head>
 <body>
-  <div id="start-overlay">Tap to Start AR Experience</div>
+  <div id="instruction-overlay">
+    <p>Point camera at the card<br>to open the portal.</p>
+  </div>
 
   <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.0001; filterBeta: 0.001;" 
+    mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.0005; filterBeta: 0.005;" 
     color-space="sRGB" 
-    renderer="colorManagement: true, physicallyCorrectLights" 
+    renderer="colorManagement: true, physicallyCorrectLights, antialias: true"
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
 
     <a-assets>
-      <a-mixin id="panel-bg" geometry="primitive: plane; width: 0.6; height: 0.2" material="color: #0088ff; opacity: 0.8; transparent: true; shader: flat; side: double"></a-mixin>
-      <a-mixin id="panel-text" text="align: center; color: white; width: 2; wrapCount: 20"></a-mixin>
+      <img id="drone-360-tex" src="./DJI_0946.JPG" crossorigin="anonymous">
     </a-assets>
 
-    <a-camera position="0 0 0" look-controls="enabled: false">
-      <a-entity cursor="fuse: false; rayOrigin: mouse;"
-                raycaster="objects: .clickable">
-      </a-entity>
-    </a-camera>
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
     <a-entity mindar-image-target="targetIndex: 0">
       
-      <a-plane position="0 0 -0.01" rotation="0 0 0" width="1.1" height="0.7" 
-               material="colorWrite: false; shader: flat"></a-plane>
-
-      <a-cylinder position="0 0 0" radius="0.05" height="0.1" 
-                  material="color: #00ffff; shader: flat; opacity: 0.7"
-                  animation="property: material.opacity; from: 0.4; to: 0.8; dir: alternate; loop: true; dur: 1000">
-      </a-cylinder>
+      <a-plane position="0 0 0" width="1" height="0.6" rotation="0 0 0"
+               material="color: #ffffff; opacity: 0.2; metalness: 0.8; roughness: 0.2; transparent: true">
+      </a-plane>
 
 
-      <a-entity id="carousel-container" position="0 -0.5 0" rotation="0 0 0"
-        animation__rise="property: position; to: 0 0.3 0; dur: 3000; easing: easeOutElastic; startEvents: ar-started"
-        animation__rotate="property: rotation; to: 0 360 0; loop: true; dur: 15000; easing: linear">
+      <a-box position="0 0.31 0" width="1.04" height="0.02" depth="0.05" color="#333"></a-box>
+      <a-box position="0 -0.31 0" width="1.04" height="0.02" depth="0.05" color="#333"></a-box>
+      <a-box position="-0.51 0 0" width="0.02" height="0.6" depth="0.05" color="#333"></a-box>
+      <a-box position="0.51 0 0" width="0.02" height="0.6" depth="0.05" color="#333"></a-box>
+
+
+      <a-entity 
+        id="portal-world"
+        visible="false" position="0 0 -40">
         
-        <a-entity rotation="0 0 0">
-          <a-entity class="clickable" link-handler data-url="https://yourwebsite.com/cv" position="0 0 0.5">
-             <a-entity mixin="panel-bg"></a-entity>
-             <a-text value="VIEW CV" mixin="panel-text"></a-text>
-          </a-entity>
-        </a-entity>
+        <a-sphere 
+          radius="50" 
+          src="#drone-360-tex" 
+          /* side: back IS CRITICAL. It renders the image on the *inside* of the sphere. */
+          side="back" 
+          /* segments: Higher numbers = smoother curved image, but more processing power */
+          segments-height="64" segments-width="64"
+          shader="flat" /* Flat shader means lighting doesn't affect the photo itself */
+          /* Rotation: Adjust Y rotation to center the best part of your drone shot */
+          rotation="0 -90 0"> 
+        </a-sphere>
+      </a-entity>
 
-        <a-entity rotation="0 120 0">
-          <a-entity class="clickable" link-handler data-url="https://yourwebsite.com/projects" position="0 0 0.5">
-             <a-entity mixin="panel-bg"></a-entity>
-             <a-text value="PROJECTS" mixin="panel-text"></a-text>
-          </a-entity>
-        </a-entity>
-
-        <a-entity rotation="0 240 0">
-          <a-entity class="clickable" link-handler data-url="https://youtube.com/yourchannel" position="0 0 0.5">
-             <a-entity mixin="panel-bg"></a-entity>
-             <a-text value="DRONE VIDEOS" mixin="panel-text"></a-text>
-          </a-entity>
-        </a-entity>
-
-        </a-entity> </a-entity> </a-scene>
+    </a-entity>
+  </a-scene>
 
   <script>
-    constoverlay = document.querySelector('#start-overlay');
-    const scene = document.querySelector('a-scene');
-    const carousel = document.querySelector('#carousel-container');
+    // Simple UX to hide instructions and reveal the portal when tracked
+    const target = document.querySelector('[mindar-image-target]');
+    const overlay = document.querySelector('#instruction-overlay');
+    const portalWorld = document.querySelector('#portal-world');
 
-    // Wait for user tap to initialize (good practice for mobile browsers)
-    overlay.addEventListener('click', () => {
-      overlay.style.display = 'none';
-      scene.play(); // Start the AR scene
+    target.addEventListener("targetFound", event => {
+      overlay.classList.add('hidden');
+      // Make the sphere visible only when tracking starts
+      portalWorld.setAttribute('visible', 'true');
     });
 
-    // When the image target is first detected
-    const target = document.querySelector('[mindar-image-target]');
-    target.addEventListener("targetFound", event => {
-      console.log("Card found");
-      // Trigger the "rising from the card" animation
-      carousel.emit('ar-started');
+    target.addEventListener("targetLost", event => {
+      overlay.classList.remove('hidden');
+      // Hide it again to save resources when not looking
+      portalWorld.setAttribute('visible', 'false');
     });
   </script>
 </body>
