@@ -1,73 +1,126 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Business Card AR</title>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-    
-    <style>
-      body { margin: 0; overflow: hidden; }
-      /* Optional: A scanning overlay to tell users what to do */
-      #scanning-overlay {
-        position: absolute; left: 0; top: 0; width: 100%; height: 100%;
-        display: flex; align-items: center; justify-content: center;
-        background: rgba(0,0,0,0.5); color: white; z-index: 999;
-        pointer-events: none; /* Let clicks pass through */
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AR Portfolio Portal</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; }
+    /* The "Tap to Start" overlay for audio/video permissions */
+    #start-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; 
+      z-index: 99999; color: white; font-family: sans-serif; font-size: 1.2em;
+      cursor: pointer;
+    }
+  </style>
+  <script>
+    // Component to handle clicking on menu items
+    AFRAME.registerComponent('link-handler', {
+      init: function () {
+        // When a user clicks an entity with this component
+        this.el.addEventListener('click', (e) => {
+          // Get the URL defined in the 'data-url' attribute
+          const url = this.el.getAttribute('data-url');
+          if (url) {
+            // Open URL in new tab
+            window.open(url, '_blank');
+          }
+        });
+        
+        // Hover effects for desktop testing (optional)
+        this.el.addEventListener('mouseenter', () => {
+           this.el.setAttribute('scale', '1.1 1.1 1.1'); 
+           this.el.children[0].setAttribute('material', 'color', '#00ffff'); // Turn bright cyan
+        });
+        this.el.addEventListener('mouseleave', () => {
+           this.el.setAttribute('scale', '1 1 1');
+           this.el.children[0].setAttribute('material', 'color', '#0088ff'); // Back to normal blue
+        });
       }
-      #scanning-overlay.hidden { display: none; }
-    </style>
-  </head>
-  <body>
+    });
+  </script>
+</head>
+<body>
+  <div id="start-overlay">Tap to Start AR Experience</div>
 
-    <div id="scanning-overlay">
-      <p>Point camera at the Business Card</p>
-    </div>
+  <a-scene 
+    mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.0001; filterBeta: 0.001;" 
+    color-space="sRGB" 
+    renderer="colorManagement: true, physicallyCorrectLights" 
+    vr-mode-ui="enabled: false" 
+    device-orientation-permission-ui="enabled: false">
 
-    <a-scene 
-      mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.0001; filterBeta: 0.001;" 
-      color-space="sRGB" 
-      renderer="colorManagement: true, physicallyCorrectLights" 
-      vr-mode-ui="enabled: false" 
-      device-orientation-permission-ui="enabled: false">
+    <a-assets>
+      <a-mixin id="panel-bg" geometry="primitive: plane; width: 0.6; height: 0.2" material="color: #0088ff; opacity: 0.8; transparent: true; shader: flat; side: double"></a-mixin>
+      <a-mixin id="panel-text" text="align: center; color: white; width: 2; wrapCount: 20"></a-mixin>
+    </a-assets>
 
-      <a-assets>
-        <video id="card-video" src="./card-video.mp4" preload="auto" loop="true" crossorigin="anonymous" playsinline webkit-playsinline muted></video>
-        
-        </a-assets>
-
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-      <a-entity mindar-image-target="targetIndex: 0">
-        
-        <a-video src="#card-video" width="1" height="0.55" position="0 0 0" rotation="0 0 0" opacity="0.9"></a-video>
-        
-        <a-plane id="click-trigger" position="0 0 0" width="1" height="0.55" visible="false"></a-plane>
-      
+    <a-camera position="0 0 0" look-controls="enabled: false">
+      <a-entity cursor="fuse: false; rayOrigin: mouse;"
+                raycaster="objects: .clickable">
       </a-entity>
-    </a-scene>
+    </a-camera>
 
-    <script>
-      // Simple logic to hide the overlay when target is found
-      const sceneEl = document.querySelector('a-scene');
-      const overlay = document.querySelector('#scanning-overlay');
-      const video = document.querySelector('#card-video');
-      const target = document.querySelector('[mindar-image-target]');
-
-      target.addEventListener("targetFound", event => {
-        overlay.classList.add('hidden');
-        video.play(); // Ensure video plays when found
-      });
-
-      target.addEventListener("targetLost", event => {
-        overlay.classList.remove('hidden');
-        video.pause(); // Save battery/processing when not looking at card
-      });
+    <a-entity mindar-image-target="targetIndex: 0">
       
-      // Handle "Touch to Unmute" (Browsers block audio autoplay)
-      document.body.addEventListener('click', () => {
-        video.muted = false;
-      });
-    </script>
-  </body>
+      <a-plane position="0 0 -0.01" rotation="0 0 0" width="1.1" height="0.7" 
+               material="colorWrite: false; shader: flat"></a-plane>
+
+      <a-cylinder position="0 0 0" radius="0.05" height="0.1" 
+                  material="color: #00ffff; shader: flat; opacity: 0.7"
+                  animation="property: material.opacity; from: 0.4; to: 0.8; dir: alternate; loop: true; dur: 1000">
+      </a-cylinder>
+
+
+      <a-entity id="carousel-container" position="0 -0.5 0" rotation="0 0 0"
+        animation__rise="property: position; to: 0 0.3 0; dur: 3000; easing: easeOutElastic; startEvents: ar-started"
+        animation__rotate="property: rotation; to: 0 360 0; loop: true; dur: 15000; easing: linear">
+        
+        <a-entity rotation="0 0 0">
+          <a-entity class="clickable" link-handler data-url="https://yourwebsite.com/cv" position="0 0 0.5">
+             <a-entity mixin="panel-bg"></a-entity>
+             <a-text value="VIEW CV" mixin="panel-text"></a-text>
+          </a-entity>
+        </a-entity>
+
+        <a-entity rotation="0 120 0">
+          <a-entity class="clickable" link-handler data-url="https://yourwebsite.com/projects" position="0 0 0.5">
+             <a-entity mixin="panel-bg"></a-entity>
+             <a-text value="PROJECTS" mixin="panel-text"></a-text>
+          </a-entity>
+        </a-entity>
+
+        <a-entity rotation="0 240 0">
+          <a-entity class="clickable" link-handler data-url="https://youtube.com/yourchannel" position="0 0 0.5">
+             <a-entity mixin="panel-bg"></a-entity>
+             <a-text value="DRONE VIDEOS" mixin="panel-text"></a-text>
+          </a-entity>
+        </a-entity>
+
+        </a-entity> </a-entity> </a-scene>
+
+  <script>
+    constoverlay = document.querySelector('#start-overlay');
+    const scene = document.querySelector('a-scene');
+    const carousel = document.querySelector('#carousel-container');
+
+    // Wait for user tap to initialize (good practice for mobile browsers)
+    overlay.addEventListener('click', () => {
+      overlay.style.display = 'none';
+      scene.play(); // Start the AR scene
+    });
+
+    // When the image target is first detected
+    const target = document.querySelector('[mindar-image-target]');
+    target.addEventListener("targetFound", event => {
+      console.log("Card found");
+      // Trigger the "rising from the card" animation
+      carousel.emit('ar-started');
+    });
+  </script>
+</body>
 </html>
