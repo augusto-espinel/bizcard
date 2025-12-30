@@ -27,7 +27,7 @@
           this.el.object3D.renderOrder = 1; // DRAW FIRST
           mesh.material.colorWrite = false; // Invisible
           mesh.material.depthWrite = false;
-          mesh.material.stencilWrite = true;
+          mesh.material.stencilWrite = false;
           mesh.material.stencilRef = 1;
           mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
           mesh.material.stencilZPass = THREE.ReplaceStencilOp; // Write "1" to buffer
