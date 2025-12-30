@@ -38,7 +38,7 @@
           this.el.object3D.renderOrder = 2; // 2. Draw this second
           
           mesh.material.side = 'back';      // Draw inside of sphere
-          mesh.material.stencilWrite = true;
+          mesh.material.stencilWrite = false;
           mesh.material.stencilRef = 1;
           mesh.material.stencilFunc = THREE.EqualStencilFunc; // Only draw where buffer == 1
         }
