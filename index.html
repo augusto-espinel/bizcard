@@ -2,59 +2,50 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR Magic Portal</title>
+  <title>AR Magic Portal Fixed</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   
   <script>
-    /* COMPONENT 1: THE MASK
-      Applied to the plane representing the "Glass" of the window.
-      It doesn't render any color (invisible), but it updates the Stencil Buffer.
+    /* FIXED COMPONENT: FORCE RENDER ORDER
+      This ensures the Mask is always drawn as #1, and Sphere as #2.
     */
-    AFRAME.registerComponent('stencil-mask', {
+    AFRAME.registerComponent('stencil-setup', {
       init: function() {
+        // Wait for the model/mesh to load completely
+        this.el.addEventListener('model-loaded', () => { this.updateConfig(); });
+        this.el.addEventListener('loaded', () => { this.updateConfig(); });
+      },
+      updateConfig: function() {
         const mesh = this.el.getObject3D('mesh');
-        if (mesh) {
-          // This ensures this plane renders BEFORE the sphere
-          this.el.object3D.renderOrder = 1;
-          
-          const mat = mesh.material;
-          mat.colorWrite = false;        // Do not draw the color (invisible)
-          mat.depthWrite = false;        // Do not block objects behind it
-          mat.stencilWrite = true;       // Enable stencil logic
-          mat.stencilRef = 1;            // Set value to 1
-          mat.stencilFunc = THREE.AlwaysStencilFunc; // Always pass
-          mat.stencilZPass = THREE.ReplaceStencilOp; // Replace 0 with 1 in the buffer
-        }
-      }
-    });
+        if (!mesh) return;
 
-    /* COMPONENT 2: THE CONTENT
-      Applied to the 360 Sphere.
-      It checks the Stencil Buffer and only draws where the value is 1.
-    */
-    AFRAME.registerComponent('stencil-content', {
-      init: function() {
-        this.el.addEventListener('loaded', () => {
-          const mesh = this.el.getObject3D('mesh');
-          if (mesh) {
-            // Render AFTER the mask
-            this.el.object3D.renderOrder = 2;
-            
-            const mat = mesh.material;
-            mat.stencilWrite = true;
-            mat.stencilRef = 1;
-            mat.stencilFunc = THREE.EqualStencilFunc; // Only draw if stencil == 1
-            mat.side = 'back'; // Draw the inside of the sphere
-          }
-        });
+        const isMask = this.el.getAttribute('id') === 'mask-plane';
+        
+        // --- 1. THE MASK (Your Card) ---
+        if (isMask) {
+          this.el.object3D.renderOrder = 1; // DRAW FIRST
+          mesh.material.colorWrite = false; // Invisible
+          mesh.material.depthWrite = false;
+          mesh.material.stencilWrite = true;
+          mesh.material.stencilRef = 1;
+          mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
+          mesh.material.stencilZPass = THREE.ReplaceStencilOp; // Write "1" to buffer
+        } 
+        // --- 2. THE SPHERE (The Photo) ---
+        else {
+          this.el.object3D.renderOrder = 2; // DRAW SECOND
+          mesh.material.side = 'back';      // See inside
+          mesh.material.stencilWrite = true;
+          mesh.material.stencilRef = 1;
+          mesh.material.stencilFunc = THREE.EqualStencilFunc; // Only draw if buffer == 1
+        }
       }
     });
   </script>
 
   <style>
     body { margin: 0; overflow: hidden; }
-    /* Scanning UI */
     #ui-layer {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       pointer-events: none; z-index: 999;
@@ -77,7 +68,7 @@
   <a-scene 
     mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.0005; filterBeta: 0.005;" 
     color-space="sRGB" 
-    renderer="colorManagement: true, physicallyCorrectLights, alpha: true"
+    renderer="colorManagement: true, physicallyCorrectLights, sortObjects: true"
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
 
@@ -90,21 +81,26 @@
     <a-entity mindar-image-target="targetIndex: 0">
       
       <a-plane 
-        stencil-mask 
+        id="mask-plane"
+        stencil-setup
         position="0 0 0" 
         width="1" height="0.6"> </a-plane>
 
       <a-sphere 
-        stencil-content
+        id="content-sphere"
+        stencil-setup
         src="#drone-360" 
         radius="30" 
         position="0 0 0"
-        rotation="0 -90 0"> </a-sphere>
+        rotation="0 -90 0"
+        animation="property: rotation; to: 0 270 0; loop: true; dur: 60000; easing: linear">
+      </a-sphere>
 
-      <a-entity position="0 0 0.01"> <a-box color="black" position="0 0.3 0" width="1.02" height="0.02" depth="0.02"></a-box>
-        <a-box color="black" position="0 -0.3 0" width="1.02" height="0.02" depth="0.02"></a-box>
-        <a-box color="black" position="-0.5 0 0" width="0.02" height="0.6" depth="0.02"></a-box>
-        <a-box color="black" position="0.5 0 0" width="0.02" height="0.6" depth="0.02"></a-box>
+      <a-entity position="0 0 0.01">
+        <a-box color="#111" position="0 0.31 0" width="1.04" height="0.02" depth="0.02"></a-box>
+        <a-box color="#111" position="0 -0.31 0" width="1.04" height="0.02" depth="0.02"></a-box>
+        <a-box color="#111" position="-0.51 0 0" width="0.02" height="0.64" depth="0.02"></a-box>
+        <a-box color="#111" position="0.51 0 0" width="0.02" height="0.64" depth="0.02"></a-box>
       </a-entity>
 
     </a-entity>
