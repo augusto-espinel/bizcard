@@ -101,7 +101,7 @@
           // Normalize values to 0.0 - 1.0 range for the shader
           // We subtract initialAlpha so the photo starts "center" wherever you are currently facing
           let pan = (e.alpha - this.initialAlpha) / 360.0;
-          let tilt = (e.beta - 45) / 180.0; // Offset by 45 deg for natural holding angle
+          let tilt = -(e.beta - 45) / 180.0; // Offset by 45 deg for natural holding angle
 
           // Update the shader material on the plane
           const mesh = this.el.getObject3D('mesh');
