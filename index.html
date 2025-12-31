@@ -2,31 +2,30 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR Portfolio Final</title>
+  <title>AR Portfolio Control Panel</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   
   <script>
-    // --- 1. HANDLING CLICKS (Opens Links) ---
+    // --- 1. CLICK HANDLER ---
     AFRAME.registerComponent('link-handler', {
       init: function () {
         this.el.addEventListener('click', (e) => {
           const url = this.el.getAttribute('data-url');
           if (url) window.open(url, '_blank');
         });
-        // Hover effect: Scale up slightly when looking at it
         this.el.addEventListener('mouseenter', () => {
-           this.el.setAttribute('scale', '1.1 1.1 1.1'); 
-           this.el.children[0].setAttribute('material', 'color', '#00ffff'); // Cyan glow
+           this.el.setAttribute('scale', '1.05 1.05 1.05'); 
+           this.el.children[0].setAttribute('material', 'color', '#00ffff'); 
         });
         this.el.addEventListener('mouseleave', () => {
            this.el.setAttribute('scale', '1 1 1');
-           this.el.children[0].setAttribute('material', 'color', 'rgba(0, 0, 0, 0.6)'); // Back to black glass
+           this.el.children[0].setAttribute('material', 'color', '#111'); 
         });
       }
     });
 
-    // --- 2. PORTAL SHADER (Your working gyro code) ---
+    // --- 2. PORTAL SHADER ---
     AFRAME.registerShader('portal-shader-gyro', {
       schema: {
         src: {type: 'map', is: 'uniform'},
@@ -59,7 +58,7 @@
       `
     });
 
-    // --- 3. GYRO CONTROL (Your working gyro code) ---
+    // --- 3. GYRO CONTROL ---
     AFRAME.registerComponent('gyro-sync', {
       init: function() {
         this.startBtn = document.getElementById('start-btn');
@@ -117,71 +116,12 @@
 
   <div id="overlay">
     <h2>AR Portfolio</h2>
-    <p>Tap below to start</p>
-    <button id="start-btn">Enter Experience</button>
+    <p>Tap to Initialize</p>
+    <button id="start-btn">Start Experience</button>
   </div>
 
   <a-scene 
     mindar-image="imageTargetSrc: ./targets.mind;" 
     color-space="sRGB" 
     renderer="colorManagement: true, physicallyCorrectLights: true"
-    vr-mode-ui="enabled: false" 
-    device-orientation-permission-ui="enabled: false">
-
-    <a-assets>
-      <img id="drone-360" src="./DJI_0946_small.JPG" crossorigin="anonymous">
-      
-      <a-mixin id="btn-bg" geometry="primitive: plane; width: 0.25; height: 0.1" material="color: rgba(0,0,0,0.6); shader: flat; transparent: true"></a-mixin>
-      <a-mixin id="btn-text" text="align: center; color: white; width: 0.8; wrapCount: 15"></a-mixin>
-    </a-assets>
-
-    <a-camera position="0 0 0" look-controls="enabled: false">
-      <a-entity cursor="fuse: false; rayOrigin: mouse;"
-                raycaster="objects: .clickable"
-                position="0 0 -1"
-                geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
-                material="color: white; shader: flat; opacity: 0.5">
-      </a-entity>
-    </a-camera>
-
-    <a-entity mindar-image-target="targetIndex: 0">
-      
-      <a-plane 
-        gyro-sync
-        material="shader: portal-shader-gyro; src: #drone-360"
-        position="0 0 0" 
-        width="1" height="0.6">
-      </a-plane>
-
-      <a-entity position="0 0 0.1">
-        
-        <a-entity position="-0.32 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/cv">
-          <a-entity mixin="btn-bg"></a-entity>
-          <a-text value="CV" mixin="btn-text"></a-text>
-        </a-entity>
-
-        <a-entity position="0 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/projects">
-          <a-entity mixin="btn-bg"></a-entity>
-          <a-text value="PROJECTS" mixin="btn-text"></a-text>
-        </a-entity>
-
-        <a-entity position="0.32 0 0" class="clickable" link-handler data-url="https://youtube.com">
-          <a-entity mixin="btn-bg"></a-entity>
-          <a-text value="VIDEO" mixin="btn-text"></a-text>
-        </a-entity>
-
-        <a-text value="MY PORTFOLIO" position="0 0.22 0" align="center" width="1.5" color="#ffffff"></a-text>
-
-      </a-entity>
-
-      <a-entity position="0 0 0.01">
-         <a-plane position="0 0.31 0" width="1.04" height="0.02" color="#222"></a-plane>
-         <a-plane position="0 -0.31 0" width="1.04" height="0.02" color="#222"></a-plane>
-         <a-plane position="-0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
-         <a-plane position="0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
-      </a-entity>
-
-    </a-entity>
-  </a-scene>
-</body>
-</html>
+    vr-mode-ui="enabled: false"
