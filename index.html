@@ -2,20 +2,17 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR Portal Final</title>
+  <title>AR Stencil Debug</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   
   <script>
-    /* STENCIL SYSTEM 
-      This logic creates the "Magic Window" effect.
-      1. It draws the card (mask) first but makes it invisible.
-      2. It draws the sphere second, but only where the mask was drawn.
-    */
+    /* STENCIL DEBUG SYSTEM */
     AFRAME.registerComponent('stencil-setup', {
       init: function() {
-        this.el.addEventListener('model-loaded', () => { this.updateConfig(); });
         this.el.addEventListener('loaded', () => { this.updateConfig(); });
+        // Force update immediately in case it's already loaded
+        this.updateConfig();
       },
       updateConfig: function() {
         const mesh = this.el.getObject3D('mesh');
@@ -24,23 +21,23 @@
         const isMask = this.el.getAttribute('id') === 'mask-plane';
         
         if (isMask) {
-          // --- THE CARD (MASK) ---
-          this.el.object3D.renderOrder = 1; // 1. Draw this first
+          console.log("Configuring MASK");
+          this.el.object3D.renderOrder = 1; 
           
-          mesh.material.colorWrite = false; // Don't show color (Invisible)
-          mesh.material.depthWrite = false; // Don't hide things behind it physically
+          mesh.material.colorWrite = false; // Invisible
+          mesh.material.depthWrite = false; 
           mesh.material.stencilWrite = true;
           mesh.material.stencilRef = 1;
           mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
-          mesh.material.stencilZPass = THREE.ReplaceStencilOp; // Write "1" to the stencil buffer
+          mesh.material.stencilZPass = THREE.ReplaceStencilOp; 
         } else {
-          // --- THE PHOTO (SPHERE) ---
-          this.el.object3D.renderOrder = 2; // 2. Draw this second
+          console.log("Configuring SPHERE");
+          this.el.object3D.renderOrder = 2; 
           
-          mesh.material.side = 'back';      // Draw inside of sphere
-          mesh.material.stencilWrite = false;
+          mesh.material.side = 'back';      
+          mesh.material.stencilWrite = true;
           mesh.material.stencilRef = 1;
-          mesh.material.stencilFunc = THREE.EqualStencilFunc; // Only draw where buffer == 1
+          mesh.material.stencilFunc = THREE.EqualStencilFunc; 
         }
       }
     });
@@ -48,73 +45,69 @@
 
   <style>
     body { margin: 0; overflow: hidden; }
-    #ui-layer {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; z-index: 999;
-      display: flex; justify-content: center; align-items: center;
-      background: rgba(0,0,0,0.5); transition: opacity 0.5s;
-    }
-    .hidden { opacity: 0; }
-    .instruction { 
-      color: white; font-family: sans-serif; font-size: 1.2rem; 
-      text-align: center; border: 2px solid white; padding: 20px; border-radius: 10px;
+    #debug-ui {
+      position: absolute; top: 10px; left: 10px; 
+      background: rgba(0,0,0,0.8); color: lime; padding: 10px;
+      font-family: monospace; pointer-events: none;
     }
   </style>
 </head>
 <body>
 
-  <div id="ui-layer">
-    <div class="instruction">Scan Business Card<br>to Enter Portal</div>
+  <div id="debug-ui">
+    Debug Mode Active<br>
+    Status: <span id="status">Searching...</span>
   </div>
 
   <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.0005; filterBeta: 0.005;" 
+    mindar-image="imageTargetSrc: ./targets.mind;" 
     color-space="sRGB" 
     renderer="colorManagement: true, sortObjects: true"
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
 
-    <a-assets>
-      <img id="drone-360" src="./DJI_0946_small2.JPG" crossorigin="anonymous">
-    </a-assets>
-
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <a-entity mindar-image-target="targetIndex: 0">
+    <a-entity mindar-image-target="targetIndex: 0" id="target">
       
+      <a-box color="green" position="0 0.5 0" width="0.2" height="0.2" depth="0.2"></a-box>
+
+
       <a-plane 
         id="mask-plane"
         stencil-setup
         position="0 0 0" 
-        width="1" height="0.6"> </a-plane>
+        width="1" height="0.6">
+      </a-plane>
 
       <a-sphere 
         id="content-sphere"
         stencil-setup
-        src="#drone-360" 
-        radius="30" 
-        position="0 0 -10" 
-        rotation="0 -90 0"> </a-sphere>
+        color="yellow"
+        wireframe="true"
+        radius="10" 
+        position="0 0 -5">
+      </a-sphere>
 
-      <a-entity position="0 0 0.01">
-         <a-box color="black" position="0 0.31 0" width="1.04" height="0.02" depth="0.02"></a-box>
-        <a-box color="black" position="0 -0.31 0" width="1.04" height="0.02" depth="0.02"></a-box>
-        <a-box color="black" position="-0.51 0 0" width="0.02" height="0.64" depth="0.02"></a-box>
-        <a-box color="black" position="0.51 0 0" width="0.02" height="0.64" depth="0.02"></a-box>
-      </a-entity>
+      <a-plane position="0 0.31 0" width="1.04" height="0.02" color="red"></a-plane>
+      <a-plane position="0 -0.31 0" width="1.04" height="0.02" color="red"></a-plane>
+      <a-plane position="-0.51 0 0" width="0.02" height="0.64" color="red"></a-plane>
+      <a-plane position="0.51 0 0" width="0.02" height="0.64" color="red"></a-plane>
 
     </a-entity>
   </a-scene>
 
   <script>
-    const ui = document.querySelector('#ui-layer');
-    const target = document.querySelector('[mindar-image-target]');
+    const target = document.querySelector('#target');
+    const statusText = document.querySelector('#status');
     
     target.addEventListener("targetFound", () => {
-      ui.classList.add('hidden');
+      statusText.innerHTML = "FOUND! (Check for Green Box)";
+      statusText.style.color = "lime";
     });
     target.addEventListener("targetLost", () => {
-      ui.classList.remove('hidden');
+      statusText.innerHTML = "LOST (Point at card)";
+      statusText.style.color = "red";
     });
   </script>
 </body>
