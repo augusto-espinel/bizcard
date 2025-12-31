@@ -2,12 +2,14 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR World Portal - Final</title>
+  <title>AR World Portal</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   
   <script>
-    /* 1. SHADER WITH INVERTED TILT */
+    /* 1. SHADER WITH OFFSET 
+      We add 'uPan' (Horizontal) and 'uTilt' (Vertical) to the math.
+    */
     AFRAME.registerShader('portal-shader-gyro', {
       schema: {
         src: {type: 'map', is: 'uniform'},
@@ -18,6 +20,7 @@
       vertexShader: `
         varying vec3 vWorldPosition;
         void main() {
+          // Calculate the vertex position relative to the camera
           vec4 worldPosition = modelMatrix * vec4(position, 1.0);
           vWorldPosition = worldPosition.xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -33,18 +36,18 @@
         const float PI = 3.14159265359;
 
         void main() {
-          vec3 dir = normalize(vWorldPosition);
+          vec3 dir = normalize(vWorldPosition); // Camera is at (0,0,0) in MindAR
 
-          // Standard Map
+          // Standard Equirectangular Mapping
+          // atan(z, x) gives the horizontal angle
           float u = atan(dir.z, dir.x) / (2.0 * PI) + 0.5;
+          // asin(y) gives the vertical angle
           float v = asin(dir.y) / PI + 0.5;
 
           // APPLY GYRO OFFSETS
-          u = mod(u - uPan, 1.0);
-          
-          // --- FIXED LINE BELOW (Changed - to +) ---
-          v = clamp(v + uTilt, 0.01, 0.99); 
-          // ---------------------------------------
+          // We simply add the phone's rotation to the texture lookup
+          u = mod(u - uPan, 1.0); // Wrap around 0.0-1.0
+          v = clamp(v - uTilt, 0.0, 1.0); // Don't flip over top/bottom
 
           vec4 color = texture2D(src, vec2(u, v));
           gl_FragColor = color;
@@ -52,48 +55,55 @@
       `
     });
 
-    /* 2. GYRO CONTROL COMPONENT */
+    /* 2. GYRO CONTROL COMPONENT 
+      This asks for permission, reads the sensor, and updates the shader.
+    */
     AFRAME.registerComponent('gyro-sync', {
       init: function() {
         this.startBtn = document.getElementById('start-btn');
         this.overlay = document.getElementById('overlay');
         this.initialAlpha = null;
 
+        // Button Click Listener
         this.startBtn.addEventListener('click', () => {
           this.requestAccess();
         });
       },
 
       requestAccess: function() {
+        // iOS 13+ requires manual permission request
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
           DeviceOrientationEvent.requestPermission()
             .then(response => {
               if (response === 'granted') {
                 this.enableGyro();
               } else {
-                alert('Permission denied.');
+                alert('Gyroscope permission denied. The portal will not rotate with you.');
                 this.hideOverlay();
               }
             })
             .catch(console.error);
         } else {
+          // Android / Non-iOS devices usually just work
           this.enableGyro();
         }
       },
 
       enableGyro: function() {
         this.hideOverlay();
+        // Listen to sensor
         window.addEventListener('deviceorientation', (e) => {
+          // Alpha = Compass Direction (0-360)
+          // Beta = Tilt Front/Back (-180 to 180)
+          
           if (this.initialAlpha === null) this.initialAlpha = e.alpha;
 
-          // Pan (Left/Right)
+          // Normalize values to 0.0 - 1.0 range for the shader
+          // We subtract initialAlpha so the photo starts "center" wherever you are currently facing
           let pan = (e.alpha - this.initialAlpha) / 360.0;
-          
-          // Tilt (Up/Down)
-          // We center it at 45 degrees (typical holding angle for a business card)
-          // If you hold it flat (0), you look down. If you hold it up (90), you look up.
-          let tilt = (e.beta - 0) / 180.0; 
+          let tilt = (e.beta - 45) / 180.0; // Offset by 45 deg for natural holding angle
 
+          // Update the shader material on the plane
           const mesh = this.el.getObject3D('mesh');
           if(mesh && mesh.material.uniforms) {
             mesh.material.uniforms.uPan.value = pan;
@@ -104,8 +114,8 @@
 
       hideOverlay: function() {
         this.overlay.style.display = 'none';
-        // Force the video to play if it was paused
         const scene = document.querySelector('a-scene');
+        scene.play(); // Start AR
       }
     });
   </script>
@@ -128,8 +138,8 @@
 
   <div id="overlay">
     <h2>AR Portal</h2>
-    <p>Tap to Initialize</p>
-    <button id="start-btn">Start Experience</button>
+    <p>We need access to your gyroscope<br>to stabilize the world.</p>
+    <button id="start-btn">Enter AR</button>
   </div>
 
   <a-scene 
