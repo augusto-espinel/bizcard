@@ -2,52 +2,53 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR Portal - Robust</title>
+  <title>AR Parallax Shader</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   
   <script>
-    /* ROBUST PORTAL SYSTEM
-      Forces 'MeshBasicMaterial' to ensure phone compatibility.
+    /* CUSTOM SHADER: THE FAKE WINDOW
+      This calculates "What part of the 360 photo would I see if this were a window?"
+      and paints it onto a flat plane.
     */
-    AFRAME.registerComponent('portal-setup', {
-      init: function() {
-        this.el.addEventListener('model-loaded', () => { this.apply(); });
-        this.el.addEventListener('loaded', () => { this.apply(); });
-        // Force retry to catch slow asset loading
-        setTimeout(() => { this.apply(); }, 500); 
-        setTimeout(() => { this.apply(); }, 1500);
+    AFRAME.registerShader('portal-shader', {
+      schema: {
+        src: {type: 'map', is: 'uniform'} // The Drone Photo
       },
-      apply: function() {
-        const mesh = this.el.getObject3D('mesh');
-        if (!mesh) return;
-
-        // 1. THE MASK (Your Card)
-        if (this.el.id === 'mask-plane') {
-          this.el.object3D.renderOrder = 1; // Draw FIRST
-          
-          mesh.material.colorWrite = false; // Invisible
-          mesh.material.depthWrite = false; 
-          mesh.material.stencilWrite = true;
-          mesh.material.stencilRef = 1;
-          mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
-          mesh.material.stencilZPass = THREE.ReplaceStencilOp; 
-        } 
-        // 2. THE SPHERE (Photo)
-        else if (this.el.id === 'content-sphere') {
-          this.el.object3D.renderOrder = 2; // Draw SECOND
-          
-          // CRITICAL SETTINGS FOR MOBILE:
-          mesh.material.transparent = false; // Force Opaque
-          mesh.material.alphaTest = 0.5;     // Discard "almost transparent" pixels
-          mesh.material.depthWrite = false;  // Don't mess up depth buffer
-          mesh.material.depthTest = true;    // Respect the mask
-          
-          mesh.material.stencilWrite = true;
-          mesh.material.stencilRef = 1;
-          mesh.material.stencilFunc = THREE.EqualStencilFunc;
+      
+      // VERTEX SHADER: standard 3D positioning
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
-      }
+      `,
+
+      // FRAGMENT SHADER: The Magic Math
+      fragmentShader: `
+        uniform sampler2D src;
+        varying vec3 vWorldPosition;
+        
+        const float PI = 3.14159265359;
+
+        void main() {
+          // 1. Calculate the direction from the camera to this pixel on the card
+          vec3 cameraPos = cameraPosition;
+          vec3 dir = normalize(vWorldPosition - cameraPos);
+
+          // 2. Convert this 3D direction into 2D coordinates (Latitude/Longitude)
+          // This maps the 360 photo to the "infinite world" behind the card
+          float u = atan(dir.z, dir.x) / (2.0 * PI) + 0.5;
+          float v = asin(dir.y) / PI + 0.5;
+
+          // 3. Look up the color from the drone photo
+          vec4 color = texture2D(src, vec2(u, v));
+          
+          gl_FragColor = color;
+        }
+      `
     });
   </script>
 
@@ -58,7 +59,7 @@
   <a-scene 
     mindar-image="imageTargetSrc: ./targets.mind;" 
     color-space="sRGB" 
-    renderer="colorManagement: true, sortObjects: true"
+    renderer="colorManagement: true, physicallyCorrectLights: true"
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
 
@@ -71,22 +72,9 @@
     <a-entity mindar-image-target="targetIndex: 0">
       
       <a-plane 
-        id="mask-plane"
-        portal-setup
+        material="shader: portal-shader; src: #drone-360"
         position="0 0 0" 
-        width="1" height="0.6">
-      </a-plane>
-
-      <a-sphere 
-        id="content-sphere"
-        portal-setup
-        src="#drone-360" 
-        radius="30" 
-        position="0 0 -5" 
-        rotation="0 -90 0"
-        scale="-1 1 1"
-        material="shader: flat; src: #drone-360;">
-      </a-sphere>
+        width="1" height="0.6"> </a-plane>
 
       <a-entity position="0 0 0.01">
          <a-plane position="0 0.31 0" width="1.04" height="0.02" color="red"></a-plane>
