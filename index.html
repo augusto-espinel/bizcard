@@ -92,7 +92,7 @@
           // Tilt (Up/Down)
           // We center it at 45 degrees (typical holding angle for a business card)
           // If you hold it flat (0), you look down. If you hold it up (90), you look up.
-          let tilt = (e.beta - 0) / 180.0; 
+          let tilt = -(e.beta - 0) / 180.0; 
 
           const mesh = this.el.getObject3D('mesh');
           if(mesh && mesh.material.uniforms) {
