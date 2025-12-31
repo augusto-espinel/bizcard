@@ -2,38 +2,51 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR Portal - Depth Method</title>
+  <title>AR Portal - Robust</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   
   <script>
-    /* OCCLUSION SYSTEM (The "Invisibility Cloak") */
-    AFRAME.registerComponent('occluder', {
+    /* ROBUST PORTAL SYSTEM
+      Forces 'MeshBasicMaterial' to ensure phone compatibility.
+    */
+    AFRAME.registerComponent('portal-setup', {
       init: function() {
         this.el.addEventListener('model-loaded', () => { this.apply(); });
         this.el.addEventListener('loaded', () => { this.apply(); });
-        this.apply();
+        // Force retry to catch slow asset loading
+        setTimeout(() => { this.apply(); }, 500); 
+        setTimeout(() => { this.apply(); }, 1500);
       },
       apply: function() {
         const mesh = this.el.getObject3D('mesh');
         if (!mesh) return;
-        
-        // 1. DRAW FIRST (Before the sphere)
-        this.el.object3D.renderOrder = 0; 
-        
-        // 2. WRITE DEPTH, BUT NOT COLOR
-        mesh.material.colorWrite = false; // Invisible
-        mesh.material.depthWrite = true;  // Blocks objects behind it
-      }
-    });
 
-    /* CONTENT SYSTEM */
-    AFRAME.registerComponent('content-layer', {
-      init: function() {
-        this.el.addEventListener('loaded', () => {
-          // DRAW SECOND (After the wall)
-          this.el.object3D.renderOrder = 1;
-        });
+        // 1. THE MASK (Your Card)
+        if (this.el.id === 'mask-plane') {
+          this.el.object3D.renderOrder = 1; // Draw FIRST
+          
+          mesh.material.colorWrite = false; // Invisible
+          mesh.material.depthWrite = false; 
+          mesh.material.stencilWrite = true;
+          mesh.material.stencilRef = 1;
+          mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
+          mesh.material.stencilZPass = THREE.ReplaceStencilOp; 
+        } 
+        // 2. THE SPHERE (Photo)
+        else if (this.el.id === 'content-sphere') {
+          this.el.object3D.renderOrder = 2; // Draw SECOND
+          
+          // CRITICAL SETTINGS FOR MOBILE:
+          mesh.material.transparent = false; // Force Opaque
+          mesh.material.alphaTest = 0.5;     // Discard "almost transparent" pixels
+          mesh.material.depthWrite = false;  // Don't mess up depth buffer
+          mesh.material.depthTest = true;    // Respect the mask
+          
+          mesh.material.stencilWrite = true;
+          mesh.material.stencilRef = 1;
+          mesh.material.stencilFunc = THREE.EqualStencilFunc;
+        }
       }
     });
   </script>
@@ -45,7 +58,7 @@
   <a-scene 
     mindar-image="imageTargetSrc: ./targets.mind;" 
     color-space="sRGB" 
-    renderer="colorManagement: true, sortObjects: true, physicallyCorrectLights: true"
+    renderer="colorManagement: true, sortObjects: true"
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
 
@@ -57,21 +70,23 @@
 
     <a-entity mindar-image-target="targetIndex: 0">
       
-      <a-plane occluder position="0 5.3 0" width="20" height="10"></a-plane>
-      <a-plane occluder position="0 -5.3 0" width="20" height="10"></a-plane>
-      <a-plane occluder position="-10.5 0 0" width="20" height="20"></a-plane>
-      <a-plane occluder position="10.5 0 0" width="20" height="20"></a-plane>
-
+      <a-plane 
+        id="mask-plane"
+        portal-setup
+        position="0 0 0" 
+        width="1" height="0.6">
+      </a-plane>
 
       <a-sphere 
-        content-layer
+        id="content-sphere"
+        portal-setup
         src="#drone-360" 
         radius="30" 
-        position="0 0 -10" 
+        position="0 0 -5" 
         rotation="0 -90 0"
-        segments-height="32" segments-width="32">
+        scale="-1 1 1"
+        material="shader: flat; src: #drone-360;">
       </a-sphere>
-
 
       <a-entity position="0 0 0.01">
          <a-plane position="0 0.31 0" width="1.04" height="0.02" color="red"></a-plane>
