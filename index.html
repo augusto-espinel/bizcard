@@ -2,108 +2,89 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR World Portal</title>
+  <title>AR Portfolio Final</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   
   <script>
-    /* 1. SHADER WITH OFFSET 
-      We add 'uPan' (Horizontal) and 'uTilt' (Vertical) to the math.
-    */
+    // --- 1. HANDLING CLICKS (Opens Links) ---
+    AFRAME.registerComponent('link-handler', {
+      init: function () {
+        this.el.addEventListener('click', (e) => {
+          const url = this.el.getAttribute('data-url');
+          if (url) window.open(url, '_blank');
+        });
+        // Hover effect: Scale up slightly when looking at it
+        this.el.addEventListener('mouseenter', () => {
+           this.el.setAttribute('scale', '1.1 1.1 1.1'); 
+           this.el.children[0].setAttribute('material', 'color', '#00ffff'); // Cyan glow
+        });
+        this.el.addEventListener('mouseleave', () => {
+           this.el.setAttribute('scale', '1 1 1');
+           this.el.children[0].setAttribute('material', 'color', 'rgba(0, 0, 0, 0.6)'); // Back to black glass
+        });
+      }
+    });
+
+    // --- 2. PORTAL SHADER (Your working gyro code) ---
     AFRAME.registerShader('portal-shader-gyro', {
       schema: {
         src: {type: 'map', is: 'uniform'},
         uPan: {type: 'float', is: 'uniform', default: 0.0},
         uTilt: {type: 'float', is: 'uniform', default: 0.0}
       },
-      
       vertexShader: `
         varying vec3 vWorldPosition;
         void main() {
-          // Calculate the vertex position relative to the camera
           vec4 worldPosition = modelMatrix * vec4(position, 1.0);
           vWorldPosition = worldPosition.xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
-
       fragmentShader: `
         uniform sampler2D src;
         uniform float uPan;
         uniform float uTilt;
         varying vec3 vWorldPosition;
-        
         const float PI = 3.14159265359;
-
         void main() {
-          vec3 dir = normalize(vWorldPosition); // Camera is at (0,0,0) in MindAR
-
-          // Standard Equirectangular Mapping
-          // atan(z, x) gives the horizontal angle
+          vec3 dir = normalize(vWorldPosition);
           float u = atan(dir.z, dir.x) / (2.0 * PI) + 0.5;
-          // asin(y) gives the vertical angle
           float v = asin(dir.y) / PI + 0.5;
-
-          // APPLY GYRO OFFSETS
-          // We simply add the phone's rotation to the texture lookup
-          u = mod(u - uPan, 1.0); // Wrap around 0.0-1.0
-          v = clamp(v - uTilt, 0.0, 1.0); // Don't flip over top/bottom
-
+          u = mod(u - uPan, 1.0);
+          v = clamp(v + uTilt, 0.01, 0.99); 
           vec4 color = texture2D(src, vec2(u, v));
           gl_FragColor = color;
         }
       `
     });
 
-    /* 2. GYRO CONTROL COMPONENT 
-      This asks for permission, reads the sensor, and updates the shader.
-    */
+    // --- 3. GYRO CONTROL (Your working gyro code) ---
     AFRAME.registerComponent('gyro-sync', {
       init: function() {
         this.startBtn = document.getElementById('start-btn');
         this.overlay = document.getElementById('overlay');
         this.initialAlpha = null;
-
-        // Button Click Listener
-        this.startBtn.addEventListener('click', () => {
-          this.requestAccess();
-        });
+        this.startBtn.addEventListener('click', () => { this.requestAccess(); });
       },
-
       requestAccess: function() {
-        // iOS 13+ requires manual permission request
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
           DeviceOrientationEvent.requestPermission()
             .then(response => {
-              if (response === 'granted') {
-                this.enableGyro();
-              } else {
-                alert('Gyroscope permission denied. The portal will not rotate with you.');
-                this.hideOverlay();
-              }
+              if (response === 'granted') this.enableGyro();
+              else { alert('Permission denied.'); this.hideOverlay(); }
             })
             .catch(console.error);
         } else {
-          // Android / Non-iOS devices usually just work
           this.enableGyro();
         }
       },
-
       enableGyro: function() {
         this.hideOverlay();
-        // Listen to sensor
         window.addEventListener('deviceorientation', (e) => {
-          // Alpha = Compass Direction (0-360)
-          // Beta = Tilt Front/Back (-180 to 180)
-          
           if (this.initialAlpha === null) this.initialAlpha = e.alpha;
-
-          // Normalize values to 0.0 - 1.0 range for the shader
-          // We subtract initialAlpha so the photo starts "center" wherever you are currently facing
           let pan = (e.alpha - this.initialAlpha) / 360.0;
-          let tilt = -(e.beta - 45) / 180.0; // Offset by 45 deg for natural holding angle
-
-          // Update the shader material on the plane
+          let tilt = -(e.beta - 45) / 180.0; 
           const mesh = this.el.getObject3D('mesh');
           if(mesh && mesh.material.uniforms) {
             mesh.material.uniforms.uPan.value = pan;
@@ -111,11 +92,9 @@
           }
         });
       },
-
       hideOverlay: function() {
         this.overlay.style.display = 'none';
-        const scene = document.querySelector('a-scene');
-        scene.play(); // Start AR
+        document.querySelector('a-scene').play();
       }
     });
   </script>
@@ -137,9 +116,9 @@
 <body>
 
   <div id="overlay">
-    <h2>AR Portal</h2>
-    <p>We need access to your gyroscope<br>to stabilize the world.</p>
-    <button id="start-btn">Enter AR</button>
+    <h2>AR Portfolio</h2>
+    <p>Tap below to start</p>
+    <button id="start-btn">Enter Experience</button>
   </div>
 
   <a-scene 
@@ -151,9 +130,19 @@
 
     <a-assets>
       <img id="drone-360" src="./DJI_0946_small.JPG" crossorigin="anonymous">
+      
+      <a-mixin id="btn-bg" geometry="primitive: plane; width: 0.25; height: 0.1" material="color: rgba(0,0,0,0.6); shader: flat; transparent: true"></a-mixin>
+      <a-mixin id="btn-text" text="align: center; color: white; width: 0.8; wrapCount: 15"></a-mixin>
     </a-assets>
 
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+    <a-camera position="0 0 0" look-controls="enabled: false">
+      <a-entity cursor="fuse: false; rayOrigin: mouse;"
+                raycaster="objects: .clickable"
+                position="0 0 -1"
+                geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
+                material="color: white; shader: flat; opacity: 0.5">
+      </a-entity>
+    </a-camera>
 
     <a-entity mindar-image-target="targetIndex: 0">
       
@@ -164,11 +153,32 @@
         width="1" height="0.6">
       </a-plane>
 
+      <a-entity position="0 0 0.1">
+        
+        <a-entity position="-0.32 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/cv">
+          <a-entity mixin="btn-bg"></a-entity>
+          <a-text value="CV" mixin="btn-text"></a-text>
+        </a-entity>
+
+        <a-entity position="0 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/projects">
+          <a-entity mixin="btn-bg"></a-entity>
+          <a-text value="PROJECTS" mixin="btn-text"></a-text>
+        </a-entity>
+
+        <a-entity position="0.32 0 0" class="clickable" link-handler data-url="https://youtube.com">
+          <a-entity mixin="btn-bg"></a-entity>
+          <a-text value="VIDEO" mixin="btn-text"></a-text>
+        </a-entity>
+
+        <a-text value="MY PORTFOLIO" position="0 0.22 0" align="center" width="1.5" color="#ffffff"></a-text>
+
+      </a-entity>
+
       <a-entity position="0 0 0.01">
-         <a-plane position="0 0.31 0" width="1.04" height="0.02" color="red"></a-plane>
-         <a-plane position="0 -0.31 0" width="1.04" height="0.02" color="red"></a-plane>
-         <a-plane position="-0.51 0 0" width="0.02" height="0.64" color="red"></a-plane>
-         <a-plane position="0.51 0 0" width="0.02" height="0.64" color="red"></a-plane>
+         <a-plane position="0 0.31 0" width="1.04" height="0.02" color="#222"></a-plane>
+         <a-plane position="0 -0.31 0" width="1.04" height="0.02" color="#222"></a-plane>
+         <a-plane position="-0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
+         <a-plane position="0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
       </a-entity>
 
     </a-entity>
