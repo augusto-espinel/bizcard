@@ -2,48 +2,38 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR Portal - Emissive Fix</title>
+  <title>AR Portal - Depth Method</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   
   <script>
-    AFRAME.registerComponent('portal-material', {
+    /* OCCLUSION SYSTEM (The "Invisibility Cloak") */
+    AFRAME.registerComponent('occluder', {
       init: function() {
         this.el.addEventListener('model-loaded', () => { this.apply(); });
         this.el.addEventListener('loaded', () => { this.apply(); });
-        // Retry after 1 second to fix "loading race conditions"
-        setTimeout(() => { this.apply(); }, 1000);
+        this.apply();
       },
       apply: function() {
         const mesh = this.el.getObject3D('mesh');
         if (!mesh) return;
+        
+        // 1. DRAW FIRST (Before the sphere)
+        this.el.object3D.renderOrder = 0; 
+        
+        // 2. WRITE DEPTH, BUT NOT COLOR
+        mesh.material.colorWrite = false; // Invisible
+        mesh.material.depthWrite = true;  // Blocks objects behind it
+      }
+    });
 
-        // 1. THE MASK (Card)
-        if (this.el.id === 'mask-plane') {
-          this.el.object3D.renderOrder = 1; 
-          mesh.material.colorWrite = false; 
-          mesh.material.depthWrite = false; 
-          mesh.material.stencilWrite = true;
-          mesh.material.stencilRef = 1;
-          mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
-          mesh.material.stencilZPass = THREE.ReplaceStencilOp; 
-        } 
-        // 2. THE SPHERE (Photo)
-        else if (this.el.id === 'content-sphere') {
-          this.el.object3D.renderOrder = 2; 
-          
-          // CRITICAL FIX: Use Standard material with Emissive (Self-Glowing) properties
-          // This bypasses the "Flat Shader" bug on some phones
-          mesh.material.side = 'back'; 
-          mesh.material.stencilWrite = true;
-          mesh.material.stencilRef = 1;
-          mesh.material.stencilFunc = THREE.EqualStencilFunc;
-          
-          // Force the texture to be visible even without lights
-          mesh.material.emissive = new THREE.Color(0xffffff);
-          mesh.material.emissiveMap = mesh.material.map;
-          mesh.material.emissiveIntensity = 1;
-        }
+    /* CONTENT SYSTEM */
+    AFRAME.registerComponent('content-layer', {
+      init: function() {
+        this.el.addEventListener('loaded', () => {
+          // DRAW SECOND (After the wall)
+          this.el.object3D.renderOrder = 1;
+        });
       }
     });
   </script>
@@ -67,24 +57,21 @@
 
     <a-entity mindar-image-target="targetIndex: 0">
       
-      <a-box src="#drone-360" position="0 0.5 0" scale="0.3 0.3 0.3"></a-box>
+      <a-plane occluder position="0 5.3 0" width="20" height="10"></a-plane>
+      <a-plane occluder position="0 -5.3 0" width="20" height="10"></a-plane>
+      <a-plane occluder position="-10.5 0 0" width="20" height="20"></a-plane>
+      <a-plane occluder position="10.5 0 0" width="20" height="20"></a-plane>
 
-
-      <a-plane 
-        id="mask-plane"
-        portal-material
-        position="0 0 0" 
-        width="1" height="0.6">
-      </a-plane>
 
       <a-sphere 
-        id="content-sphere"
-        portal-material
+        content-layer
         src="#drone-360" 
         radius="30" 
         position="0 0 -10" 
-        rotation="0 -90 0">
+        rotation="0 -90 0"
+        segments-height="32" segments-width="32">
       </a-sphere>
+
 
       <a-entity position="0 0 0.01">
          <a-plane position="0 0.31 0" width="1.04" height="0.02" color="red"></a-plane>
