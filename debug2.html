@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AR Stencil Debug</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  
+  <script>
+    /* STENCIL DEBUG SYSTEM */
+    AFRAME.registerComponent('stencil-setup', {
+      init: function() {
+        this.el.addEventListener('loaded', () => { this.updateConfig(); });
+        // Force update immediately in case it's already loaded
+        this.updateConfig();
+      },
+      updateConfig: function() {
+        const mesh = this.el.getObject3D('mesh');
+        if (!mesh) return;
+
+        const isMask = this.el.getAttribute('id') === 'mask-plane';
+        
+        if (isMask) {
+          console.log("Configuring MASK");
+          this.el.object3D.renderOrder = 1; 
+          
+          mesh.material.colorWrite = false; // Invisible
+          mesh.material.depthWrite = false; 
+          mesh.material.stencilWrite = true;
+          mesh.material.stencilRef = 1;
+          mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
+          mesh.material.stencilZPass = THREE.ReplaceStencilOp; 
+        } else {
+          console.log("Configuring SPHERE");
+          this.el.object3D.renderOrder = 2; 
+          
+          mesh.material.side = 'back';      
+          mesh.material.stencilWrite = true;
+          mesh.material.stencilRef = 1;
+          mesh.material.stencilFunc = THREE.EqualStencilFunc; 
+        }
+      }
+    });
+  </script>
+
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #debug-ui {
+      position: absolute; top: 10px; left: 10px; 
+      background: rgba(0,0,0,0.8); color: lime; padding: 10px;
+      font-family: monospace; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="debug-ui">
+    Debug Mode Active<br>
+    Status: <span id="status">Searching...</span>
+  </div>
+
+  <a-scene 
+    mindar-image="imageTargetSrc: ./targets.mind;" 
+    color-space="sRGB" 
+    renderer="colorManagement: true, sortObjects: true"
+    vr-mode-ui="enabled: false" 
+    device-orientation-permission-ui="enabled: false">
+
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <a-entity mindar-image-target="targetIndex: 0" id="target">
+      
+      <a-box color="green" position="0 0.5 0" width="0.2" height="0.2" depth="0.2"></a-box>
+
+
+      <a-plane 
+        id="mask-plane"
+        stencil-setup
+        position="0 0 0" 
+        width="1" height="0.6">
+      </a-plane>
+
+      <a-sphere 
+        id="content-sphere"
+        stencil-setup
+        color="yellow"
+        wireframe="true"
+        radius="10" 
+        position="0 0 -5">
+      </a-sphere>
+
+      <a-plane position="0 0.31 0" width="1.04" height="0.02" color="red"></a-plane>
+      <a-plane position="0 -0.31 0" width="1.04" height="0.02" color="red"></a-plane>
+      <a-plane position="-0.51 0 0" width="0.02" height="0.64" color="red"></a-plane>
+      <a-plane position="0.51 0 0" width="0.02" height="0.64" color="red"></a-plane>
+
+    </a-entity>
+  </a-scene>
+
+  <script>
+    const target = document.querySelector('#target');
+    const statusText = document.querySelector('#status');
+    
+    target.addEventListener("targetFound", () => {
+      statusText.innerHTML = "FOUND! (Check for Green Box)";
+      statusText.style.color = "lime";
+    });
+    target.addEventListener("targetLost", () => {
+      statusText.innerHTML = "LOST (Point at card)";
+      statusText.style.color = "red";
+    });
+  </script>
+</body>
+</html>
