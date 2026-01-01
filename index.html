@@ -68,6 +68,8 @@
       init: function() {
         // SET YOUR LIMIT HERE (in degrees)
         this.limit = 45; 
+
+        this.sensitivity = 2;
         
         this.startBtn = document.getElementById('start-btn');
         this.overlay = document.getElementById('overlay');
@@ -114,8 +116,8 @@
           // 4. Convert to Shader values (0.0 to 1.0)
           // We assume the full 360 image would map to 360 degrees, 
           // so we divide by 360 to keep the scale 1:1.
-          let pan = diff / 360.0;
-          let tilt = -(e.beta - 45) / 180.0; 
+          let pan = diff / 360.0 * this.sensitivity;
+          let tilt = -(e.beta - 45) / 180.0 * this.sensitivity; 
 
           const mesh = this.el.getObject3D('mesh');
           if(mesh && mesh.material.uniforms) {
