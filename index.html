@@ -196,7 +196,13 @@
 
     <a-assets>
       <img id="drone-360" src="./PXL_20250906_164653201.PANO.jpg" crossorigin="anonymous">
-      <a-mixin id="btn-text" text="align: center; color: white; width: 0.9; wrapCount: 15"></a-mixin>
+      <a-mixin id="btn-bg" geometry="primitive: box; width: 0.3; height: 0.08; depth: 0.01" material="color: #111; shader: flat;"></a-mixin>
+      <a-mixin id="btn-text" 
+              text="align: center; color: white; width: 0.9; wrapCount: 15;
+                    font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/montserrat/Montserrat-Bold.json;
+                    shader: msdf;
+                    negate: false">
+      </a-mixin>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false">
