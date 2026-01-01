@@ -8,77 +8,48 @@
   
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; }
-    
-    /* Fullscreen Overlay */
     #overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
       justify-content: center; align-items: center; z-index: 9999;
       color: white; text-align: center;
     }
-    
     button {
       background: #0088ff; color: white; border: none; padding: 15px 30px;
       font-size: 1.2rem; border-radius: 5px; margin-top: 20px; cursor: pointer;
     }
-
-    /* Debug Console (Hidden unless needed) */
-    #debug-log {
-      position: absolute; top: 0; left: 0; padding: 5px; 
-      color: lime; font-family: monospace; font-size: 10px; 
-      pointer-events: none; z-index: 10000;
-    }
   </style>
 
   <script>
-    // Helper to print errors to the screen
-    function log(msg) {
-      console.log(msg);
-      const d = document.getElementById('debug-log');
-      if(d) d.innerText += '\n' + msg;
-    }
-
-    // --- 1. CLICK HANDLER (Safe Version) ---
+    // --- 1. CLICK HANDLER ---
     AFRAME.registerComponent('link-handler', {
       init: function () {
-        // Handle Clicks
         this.el.addEventListener('click', (e) => {
           const url = this.el.getAttribute('data-url');
           if (url) window.open(url, '_blank');
         });
-
-        // Handle Hover (Color Change)
         this.el.addEventListener('mouseenter', () => {
            this.el.setAttribute('scale', '1.05 1.05 1.05');
-           // access the background box safely
            const bg = this.el.querySelector('.bg-box');
            if(bg) bg.setAttribute('material', 'color', '#00ffff');
         });
-
         this.el.addEventListener('mouseleave', () => {
            this.el.setAttribute('scale', '1 1 1');
            const bg = this.el.querySelector('.bg-box');
-           if(bg) bg.setAttribute('material', 'color', '#111');
+           if(bg) bg.setAttribute('material', 'color', '#C0C0C0'); // Reset to Silver
         });
       }
     });
 
-// --- 3. GYRO CONTROL (Clamped Version) ---
+    // --- 2. GYRO CONTROL ---
     AFRAME.registerComponent('gyro-sync', {
       init: function() {
-        // SET YOUR LIMIT HERE (in degrees)
         this.limit = 45; 
-
         this.sensitivity = 2;
-        
         this.startBtn = document.getElementById('start-btn');
-        this.overlay = document.getElementById('overlay');
         this.initialAlpha = null;
         this.initialBeta = 55;
-        
-        if(this.startBtn) {
-          this.startBtn.addEventListener('click', () => { this.requestAccess(); });
-        }
+        if(this.startBtn) this.startBtn.addEventListener('click', () => { this.requestAccess(); });
       },
       requestAccess: function() {
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -94,30 +65,16 @@
       },
       enableGyro: function() {
         document.getElementById('overlay').style.display = 'none';
-        
         window.addEventListener('deviceorientation', (e) => {
           if(!e.alpha) return;
-          
-          // Capture the starting direction
           if (this.initialAlpha === null) this.initialAlpha = e.alpha;
-
-          // 1. Calculate the raw difference in angle
           let diffAlpha = e.alpha - this.initialAlpha;
           let diffBeta = e.beta - this.initialBeta;
-
-          // 2. Fix the "Compass Jump" (going from 359° to 1°)
-          // This ensures the math knows that 359 is right next to 0
           if (diffAlpha > 180) diffAlpha -= 360;
           if (diffAlpha < -180) diffAlpha += 360;
-
-          // 3. CLAMP THE ROTATION
-          // If diff is greater than limit, force it to be limit
           if (diffAlpha > this.limit) diffAlpha = this.limit;
           if (diffAlpha < -this.limit) diffAlpha = -this.limit;
-
-          // 4. Convert to Shader values (0.0 to 1.0)
-          // We assume the full 360 image would map to 360 degrees, 
-          // so we divide by 360 to keep the scale 1:1.
+          
           let pan = diffAlpha / 360.0 * this.sensitivity;
           let tilt = -diffBeta / 180.0 * this.sensitivity; 
 
@@ -130,16 +87,14 @@
       }
     });
 
-// --- 2. PORTAL SHADER (With Zoom) ---
+    // --- 3. PORTAL SHADER ---
     AFRAME.registerShader('portal-shader-gyro', {
       schema: {
         src: {type: 'map', is: 'uniform'},
         uPan: {type: 'float', is: 'uniform', default: 0.0},
         uTilt: {type: 'float', is: 'uniform', default: 0.0},
-        // NEW: Zoom Level (1.0 = Normal, 2.0 = Wide Angle)
-        uZoom: {type: 'float', is: 'uniform', default: 3} 
+        uZoom: {type: 'float', is: 'uniform', default: 3.0} 
       },
-      
       vertexShader: `
         varying vec3 vWorldPosition;
         void main() {
@@ -148,28 +103,19 @@
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
-
       fragmentShader: `
         uniform sampler2D src;
         uniform float uPan;
         uniform float uTilt;
-        uniform float uZoom; // Receive the zoom value
+        uniform float uZoom;
         varying vec3 vWorldPosition;
-        
         const float PI = 3.14159265359;
-
         void main() {
           vec3 dir = normalize(vWorldPosition);
-
-          // Standard Equirectangular Mapping
-          // We multiply the raw angles by uZoom to "squeeze" the image
           float u = (atan(dir.z, dir.x) * uZoom) / (2.0 * PI) + 0.5;
           float v = (asin(dir.y) * uZoom) / PI + 0.5;
-
-          // Apply Gyro Offsets
           u = mod(u - uPan, 1.0);
           v = clamp(v + uTilt, 0.01, 0.99); 
-
           vec4 color = texture2D(src, vec2(u, v));
           gl_FragColor = color;
         }
@@ -178,8 +124,6 @@
   </script>
 </head>
 <body>
-
-  <div id="debug-log">Log Started...</div>
 
   <div id="overlay">
     <h2>AR Portfolio</h2>
@@ -196,28 +140,30 @@
 
     <a-assets>
       <img id="drone-360" src="./PXL_20250906_164653201.PANO.jpg" crossorigin="anonymous">
+      
       <a-mixin id="btn-bg" 
-         geometry="primitive: box; width: 0.3; height: 0.12; depth: 0.02" 
-         material="shader: standard; color: #C0C0C0; metalness: 0.8; roughness: 0.3; emissive: #222; emissiveIntensity: 0.2">
+           geometry="primitive: box; width: 0.3; height: 0.12; depth: 0.02" 
+           material="shader: standard; color: #e0e0e0; metalness: 0.3; roughness: 0.2">
       </a-mixin>
+
       <a-mixin id="btn-text" 
-              text="align: center; 
-                    anchor: center; 
-                    baseline: center; 
-                    color: white; 
-                    width: 0.9; 
-                    wrapCount: 15;
-                    font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/montserrat/Montserrat-Bold.json;
-                    shader: msdf;
-                    negate: true">
+             text="align: center; anchor: center; baseline: center; color: white; width: 0.9; wrapCount: 15;
+                   font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/montserrat/Montserrat-Bold.json;
+                   shader: msdf; negate: true">
       </a-mixin>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false">
+      <a-entity light="type: directional; intensity: 1; castShadow: false" position="0 0 0"></a-entity>
       
-      <a-entity light="type: directional; intensity: 1.5; color: #ffffff" position="0 0 0"></a-entity>
+      <a-entity light="type: ambient; intensity: 0.8"></a-entity>
 
-      <a-entity cursor="fuse: false; rayOrigin: mouse;" ... ></a-entity>
+      <a-entity cursor="fuse: false; rayOrigin: mouse;"
+                raycaster="objects: .clickable"
+                position="0 0 -1"
+                geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
+                material="color: white; shader: flat; opacity: 0.5">
+      </a-entity>
     </a-camera>
 
     <a-entity mindar-image-target="targetIndex: 0">
@@ -232,18 +178,18 @@
       <a-entity position="0 -0.4 0">
         
         <a-entity position="0 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/cv">
-          <a-box class="bg-box" mixin="btn-bg" geometry="width: 0.3"></a-box>
-          <a-text value="Resume" mixin="btn-text" position="0 -0.055 0.011"></a-text>
+          <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.3"></a-entity>
+          <a-text value="Resume" mixin="btn-text" position="0 -0.01 0.011"></a-text>
         </a-entity>
 
-        <a-entity position="0 -0.2 0" class="clickable" link-handler data-url="https://yourwebsite.com/projects">
-          <a-box class="bg-box" mixin="btn-bg" geometry="width: 0.5"></a-box>
-          <a-text value="Projects" mixin="btn-text" position="0 -0.055 0.011"></a-text>
+        <a-entity position="0 -0.15 0" class="clickable" link-handler data-url="https://yourwebsite.com/projects">
+          <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.5"></a-entity>
+          <a-text value="Projects" mixin="btn-text" position="0 -0.01 0.011"></a-text>
         </a-entity>
 
-        <a-entity position="0 -0.4 0" class="clickable" link-handler data-url="https://youtube.com">
-          <a-box class="bg-box" mixin="btn-bg" geometry="width: 0.8"></a-box>
-          <a-text value="Drone Videos" mixin="btn-text" position="0 -0.055 0.011"></a-text>
+        <a-entity position="0 -0.3 0" class="clickable" link-handler data-url="https://youtube.com">
+          <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.8"></a-entity>
+          <a-text value="Drone Videos" mixin="btn-text" position="0 -0.01 0.011"></a-text>
         </a-entity>
 
       </a-entity>
