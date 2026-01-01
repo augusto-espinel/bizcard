@@ -74,6 +74,7 @@
         this.startBtn = document.getElementById('start-btn');
         this.overlay = document.getElementById('overlay');
         this.initialAlpha = null;
+        this.initialBeta = 0;
         
         if(this.startBtn) {
           this.startBtn.addEventListener('click', () => { this.requestAccess(); });
@@ -101,23 +102,24 @@
           if (this.initialAlpha === null) this.initialAlpha = e.alpha;
 
           // 1. Calculate the raw difference in angle
-          let diff = e.alpha - this.initialAlpha;
+          let diffAlpha = e.alpha - this.initialAlpha;
+          let diffBeta = e.beta - this.initialBeta;
 
           // 2. Fix the "Compass Jump" (going from 359° to 1°)
           // This ensures the math knows that 359 is right next to 0
-          if (diff > 180) diff -= 360;
-          if (diff < -180) diff += 360;
+          if (diffAlpha > 180) diffAlpha -= 360;
+          if (diffAlpha < -180) diffAlpha += 360;
 
           // 3. CLAMP THE ROTATION
           // If diff is greater than limit, force it to be limit
-          if (diff > this.limit) diff = this.limit;
-          if (diff < -this.limit) diff = -this.limit;
+          if (diffAlpha > this.limit) diffAlpha = this.limit;
+          if (diffAlpha < -this.limit) diffAlpha = -this.limit;
 
           // 4. Convert to Shader values (0.0 to 1.0)
           // We assume the full 360 image would map to 360 degrees, 
           // so we divide by 360 to keep the scale 1:1.
-          let pan = diff / 360.0 * this.sensitivity;
-          let tilt = -(e.beta - 45) / 180.0 * this.sensitivity; 
+          let pan = diffAlpha / 360.0 * this.sensitivity;
+          let tilt = -diffBeta / 180.0 * this.sensitivity; 
 
           const mesh = this.el.getObject3D('mesh');
           if(mesh && mesh.material.uniforms) {
