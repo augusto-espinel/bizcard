@@ -128,13 +128,16 @@
       }
     });
 
-    // --- 3. PORTAL SHADER ---
+// --- 2. PORTAL SHADER (With Zoom) ---
     AFRAME.registerShader('portal-shader-gyro', {
       schema: {
         src: {type: 'map', is: 'uniform'},
         uPan: {type: 'float', is: 'uniform', default: 0.0},
-        uTilt: {type: 'float', is: 'uniform', default: 0.0}
+        uTilt: {type: 'float', is: 'uniform', default: 0.0},
+        // NEW: Zoom Level (1.0 = Normal, 2.0 = Wide Angle)
+        uZoom: {type: 'float', is: 'uniform', default: 3.0} 
       },
+      
       vertexShader: `
         varying vec3 vWorldPosition;
         void main() {
@@ -143,18 +146,28 @@
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
+
       fragmentShader: `
         uniform sampler2D src;
         uniform float uPan;
         uniform float uTilt;
+        uniform float uZoom; // Receive the zoom value
         varying vec3 vWorldPosition;
+        
         const float PI = 3.14159265359;
+
         void main() {
           vec3 dir = normalize(vWorldPosition);
-          float u = atan(dir.z, dir.x) / (2.0 * PI) + 0.5;
-          float v = asin(dir.y) / PI + 0.5;
+
+          // Standard Equirectangular Mapping
+          // We multiply the raw angles by uZoom to "squeeze" the image
+          float u = (atan(dir.z, dir.x) * uZoom) / (2.0 * PI) + 0.5;
+          float v = (asin(dir.y) * uZoom) / PI + 0.5;
+
+          // Apply Gyro Offsets
           u = mod(u - uPan, 1.0);
           v = clamp(v + uTilt, 0.01, 0.99); 
+
           vec4 color = texture2D(src, vec2(u, v));
           gl_FragColor = color;
         }
