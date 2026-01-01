@@ -63,41 +63,58 @@
       }
     });
 
-    // --- 2. GYRO CONTROL (Safe Version) ---
+// --- 3. GYRO CONTROL (Clamped Version) ---
     AFRAME.registerComponent('gyro-sync', {
       init: function() {
-        log("Gyro Sync Initialized");
-        // We look for the button, but we check if it exists first
-        const btn = document.getElementById('start-btn');
-        if(btn) {
-          btn.addEventListener('click', () => { this.requestAccess(); });
-        } else {
-          log("Error: Start Button not found.");
+        // SET YOUR LIMIT HERE (in degrees)
+        this.limit = 45; 
+        
+        this.startBtn = document.getElementById('start-btn');
+        this.overlay = document.getElementById('overlay');
+        this.initialAlpha = null;
+        
+        if(this.startBtn) {
+          this.startBtn.addEventListener('click', () => { this.requestAccess(); });
         }
       },
       requestAccess: function() {
-        log("Requesting Sensor Access...");
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
           DeviceOrientationEvent.requestPermission()
             .then(response => {
               if (response === 'granted') this.enableGyro();
-              else alert('Permission denied. Reload to try again.');
+              else alert('Permission denied.');
             })
-            .catch(e => log("Sensor Error: " + e));
+            .catch(console.error);
         } else {
           this.enableGyro();
         }
       },
       enableGyro: function() {
-        log("Sensors Enabled. Starting AR.");
         document.getElementById('overlay').style.display = 'none';
         
-        // Listen to rotation
         window.addEventListener('deviceorientation', (e) => {
-          if(!e.alpha) return; // Ignore null data
-          if (this.initialAlpha === null || this.initialAlpha === undefined) this.initialAlpha = e.alpha;
+          if(!e.alpha) return;
           
-          let pan = (e.alpha - this.initialAlpha) / 360.0;
+          // Capture the starting direction
+          if (this.initialAlpha === null) this.initialAlpha = e.alpha;
+
+          // 1. Calculate the raw difference in angle
+          let diff = e.alpha - this.initialAlpha;
+
+          // 2. Fix the "Compass Jump" (going from 359° to 1°)
+          // This ensures the math knows that 359 is right next to 0
+          if (diff > 180) diff -= 360;
+          if (diff < -180) diff += 360;
+
+          // 3. CLAMP THE ROTATION
+          // If diff is greater than limit, force it to be limit
+          if (diff > this.limit) diff = this.limit;
+          if (diff < -this.limit) diff = -this.limit;
+
+          // 4. Convert to Shader values (0.0 to 1.0)
+          // We assume the full 360 image would map to 360 degrees, 
+          // so we divide by 360 to keep the scale 1:1.
+          let pan = diff / 360.0;
           let tilt = -(e.beta - 45) / 180.0; 
 
           const mesh = this.el.getObject3D('mesh');
