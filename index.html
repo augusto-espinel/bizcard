@@ -196,7 +196,10 @@
 
     <a-assets>
       <img id="drone-360" src="./PXL_20250906_164653201.PANO.jpg" crossorigin="anonymous">
-      <a-mixin id="btn-bg" geometry="primitive: box; width: 0.3; height: 0.08; depth: 0.01" material="color: #111; shader: flat;"></a-mixin>
+      <a-mixin id="btn-bg" 
+         geometry="primitive: box; width: 0.3; height: 0.08; depth: 0.02" 
+         material="shader: standard; color: #C0C0C0; metalness: 0.8; roughness: 0.3; emissive: #222; emissiveIntensity: 0.2">
+      </a-mixin>
       <a-mixin id="btn-text" 
               text="align: center; 
                     anchor: center; 
@@ -206,17 +209,15 @@
                     wrapCount: 15;
                     font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/montserrat/Montserrat-Bold.json;
                     shader: msdf;
-                    negate: false">
+                    negate: true">
       </a-mixin>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false">
-      <a-entity cursor="fuse: false; rayOrigin: mouse;"
-                raycaster="objects: .clickable"
-                position="0 0 -1"
-                geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
-                material="color: white; shader: flat; opacity: 0.5">
-      </a-entity>
+      
+      <a-entity light="type: directional; intensity: 1.5; color: #ffffff" position="0 0 0"></a-entity>
+
+      <a-entity cursor="fuse: false; rayOrigin: mouse;" ... ></a-entity>
     </a-camera>
 
     <a-entity mindar-image-target="targetIndex: 0">
@@ -231,18 +232,18 @@
       <a-entity position="0 -0.4 0">
         
         <a-entity position="0 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/cv">
-          <a-box class="bg-box" width="0.3" height="0.08" depth="0.01" color="#111"></a-box>
-          <a-text value="Resume" mixin="btn-text" position="0 0 0.01"></a-text>
+          <a-box class="bg-box" width="0.3" mixin="btn-bg"></a-box>
+          <a-text value="Resume" mixin="btn-text" position="0 -0.015 0.011"></a-text>
         </a-entity>
 
         <a-entity position="0 -0.2 0" class="clickable" link-handler data-url="https://yourwebsite.com/projects">
-          <a-box class="bg-box" width="0.3" height="0.08" depth="0.01" color="#111"></a-box>
-          <a-text value="Projects" mixin="btn-text" position="0 0 0.01"></a-text>
+          <a-box class="bg-box" width="0.5" mixin="btn-bg"></a-box>
+          <a-text value="Projects" mixin="btn-text" position="0 -0.015 0.011"></a-text>
         </a-entity>
 
         <a-entity position="0 -0.4 0" class="clickable" link-handler data-url="https://youtube.com">
-          <a-box class="bg-box" width="0.3" height="0.08" depth="0.01" color="#111"></a-box>
-          <a-text value="Drone Videos" mixin="btn-text" position="0 0 0.01"></a-text>
+          <a-box class="bg-box" width="0.8" mixin="btn-bg"></a-box>
+          <a-text value="Drone Videos" mixin="btn-text" position="0 -0.015 0.011"></a-text>
         </a-entity>
 
       </a-entity>
