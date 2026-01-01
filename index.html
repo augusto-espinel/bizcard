@@ -197,7 +197,7 @@
     <a-assets>
       <img id="drone-360" src="./PXL_20250906_164653201.PANO.jpg" crossorigin="anonymous">
       <a-mixin id="btn-bg" 
-         geometry="primitive: box; width: 0.3; height: 0.08; depth: 0.02" 
+         geometry="primitive: box; width: 0.3; height: 0.12; depth: 0.02" 
          material="shader: standard; color: #C0C0C0; metalness: 0.8; roughness: 0.3; emissive: #222; emissiveIntensity: 0.2">
       </a-mixin>
       <a-mixin id="btn-text" 
@@ -233,17 +233,17 @@
         
         <a-entity position="0 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/cv">
           <a-box class="bg-box" mixin="btn-bg" geometry="width: 0.3"></a-box>
-          <a-text value="Resume" mixin="btn-text" position="0 -0.035 0.011"></a-text>
+          <a-text value="Resume" mixin="btn-text" position="0 -0.055 0.011"></a-text>
         </a-entity>
 
         <a-entity position="0 -0.2 0" class="clickable" link-handler data-url="https://yourwebsite.com/projects">
           <a-box class="bg-box" mixin="btn-bg" geometry="width: 0.5"></a-box>
-          <a-text value="Projects" mixin="btn-text" position="0 -0.035 0.011"></a-text>
+          <a-text value="Projects" mixin="btn-text" position="0 -0.055 0.011"></a-text>
         </a-entity>
 
         <a-entity position="0 -0.4 0" class="clickable" link-handler data-url="https://youtube.com">
           <a-box class="bg-box" mixin="btn-bg" geometry="width: 0.8"></a-box>
-          <a-text value="Drone Videos" mixin="btn-text" position="0 -0.035 0.011"></a-text>
+          <a-text value="Drone Videos" mixin="btn-text" position="0 -0.055 0.011"></a-text>
         </a-entity>
 
       </a-entity>
