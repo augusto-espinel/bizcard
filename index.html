@@ -157,18 +157,13 @@
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false">
-      
       <a-entity light="type: directional; intensity: 1.2; castShadow: false" position="1 1 1"></a-entity>
-      
       <a-entity light="type: directional; intensity: 0.3; color: #aaddff" position="-1 -1 0.5"></a-entity>
-
       <a-entity light="type: ambient; intensity: 0.2"></a-entity>
 
       <a-entity cursor="fuse: false; rayOrigin: mouse;"
                 raycaster="objects: .clickable"
-                position="0 0 -1"
-                geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
-                material="color: white; shader: flat; opacity: 0.5">
+                position="0 0 -1">
       </a-entity>
     </a-camera>
 
@@ -183,17 +178,23 @@
 
       <a-entity position="0 -0.4 0">
         
-        <a-entity position="0 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/cv">
+        <a-entity position="0 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/cv"
+                  geometry="primitive: plane; width: 0.45; height: 0.12"
+                  material="opacity: 0.0; transparent: true">
           <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.45"></a-entity>
           <a-text value="Resume" mixin="btn-text" position="0 -0.055 0"></a-text>
         </a-entity>
 
-        <a-entity position="0 -0.15 0" class="clickable" link-handler data-url="https://yourwebsite.com/projects">
+        <a-entity position="0 -0.15 0" class="clickable" link-handler data-url="https://yourwebsite.com/projects"
+                  geometry="primitive: plane; width: 0.5; height: 0.12"
+                  material="opacity: 0.0; transparent: true">
           <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.5"></a-entity>
           <a-text value="Projects" mixin="btn-text" position="0 -0.055 0"></a-text>
         </a-entity>
 
-        <a-entity position="0 -0.3 0" class="clickable" link-handler data-url="https://youtube.com">
+        <a-entity position="0 -0.3 0" class="clickable" link-handler data-url="https://youtube.com"
+                  geometry="primitive: plane; width: 0.8; height: 0.12"
+                  material="opacity: 0.0; transparent: true">
           <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.8"></a-entity>
           <a-text value="Drone Videos" mixin="btn-text" position="0 -0.055 0"></a-text>
         </a-entity>
