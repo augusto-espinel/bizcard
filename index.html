@@ -47,7 +47,7 @@
         this.limit = 45; 
         this.sensitivity = 2;
         this.startBtn = document.getElementById('start-btn');
-        this.initialAlpha = null;
+        this.initialAlpha = 90;
         this.initialBeta = 55;
         if(this.startBtn) this.startBtn.addEventListener('click', () => { this.requestAccess(); });
       },
@@ -142,8 +142,11 @@
       <img id="drone-360" src="./PXL_20250906_164653201.PANO.jpg" crossorigin="anonymous">
       
       <a-mixin id="btn-bg" 
-           geometry="primitive: box; width: 0.3; height: 0.12; depth: 0.02" 
-           material="shader: standard; color: #e0e0e0; metalness: 0.3; roughness: 0.2">
+           geometry="primitive: box; width: 0.3; height: 0.12; depth: 0.04" 
+           material="shader: standard; 
+                     color: #ffffff; 
+                     metalness: 0.4; 
+                     roughness: 0.6;">
       </a-mixin>
 
       <a-mixin id="btn-text" 
@@ -154,9 +157,12 @@
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false">
-      <a-entity light="type: directional; intensity: 1; castShadow: false" position="0 0 0"></a-entity>
       
-      <a-entity light="type: ambient; intensity: 0.8"></a-entity>
+      <a-entity light="type: directional; intensity: 1.2; castShadow: false" position="1 1 1"></a-entity>
+      
+      <a-entity light="type: directional; intensity: 0.3; color: #aaddff" position="-1 -1 0.5"></a-entity>
+
+      <a-entity light="type: ambient; intensity: 0.2"></a-entity>
 
       <a-entity cursor="fuse: false; rayOrigin: mouse;"
                 raycaster="objects: .clickable"
