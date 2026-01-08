@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR Portfolio Final</title>
+  <title>AR Portfolio Final - Neural Fractal</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   
@@ -36,93 +36,106 @@
         this.el.addEventListener('mouseleave', () => {
            this.el.setAttribute('scale', '1 1 1');
            const bg = this.el.querySelector('.bg-box');
-           if(bg) bg.setAttribute('material', 'color', '#C0C0C0'); // Reset to Silver
+           if(bg) bg.setAttribute('material', 'color', '#C0C0C0'); 
         });
       }
     });
 
-    // --- 2. GYRO CONTROL ---
-    AFRAME.registerComponent('gyro-sync', {
-      init: function() {
-        this.limit = 45; 
-        this.sensitivity = 2;
-        this.startBtn = document.getElementById('start-btn');
-        this.initialAlpha = -90;
-        this.initialBeta = 55;
-        if(this.startBtn) this.startBtn.addEventListener('click', () => { this.requestAccess(); });
+    // --- 2. TIME UPDATER (Required for Animation) ---
+    AFRAME.registerComponent('uniform-updater', {
+      init: function () {
+        this.time = 0;
       },
-      requestAccess: function() {
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission()
-            .then(response => {
-              if (response === 'granted') this.enableGyro();
-              else alert('Permission denied.');
-            })
-            .catch(console.error);
-        } else {
-          this.enableGyro();
+      tick: function (t, dt) {
+        // Update time uniform for the shader
+        this.time += dt / 1000; // Convert ms to seconds
+        const mesh = this.el.getObject3D('mesh');
+        if (mesh && mesh.material.uniforms) {
+          mesh.material.uniforms.uTime.value = this.time;
         }
-      },
-      enableGyro: function() {
-        document.getElementById('overlay').style.display = 'none';
-        window.addEventListener('deviceorientation', (e) => {
-          if(!e.alpha) return;
-          if (this.initialAlpha === null) this.initialAlpha = e.alpha;
-          let diffAlpha = e.alpha - this.initialAlpha;
-          let diffBeta = e.beta - this.initialBeta;
-          if (diffAlpha > 180) diffAlpha -= 360;
-          if (diffAlpha < -180) diffAlpha += 360;
-          if (diffAlpha > this.limit) diffAlpha = this.limit;
-          if (diffAlpha < -this.limit) diffAlpha = -this.limit;
-          
-          let pan = diffAlpha / 360.0 * this.sensitivity;
-          let tilt = -diffBeta / 180.0 * this.sensitivity; 
-
-          const mesh = this.el.getObject3D('mesh');
-          if(mesh && mesh.material.uniforms) {
-            mesh.material.uniforms.uPan.value = pan;
-            mesh.material.uniforms.uTilt.value = tilt;
-          }
-        });
       }
     });
 
-    // --- 3. PORTAL SHADER ---
-    AFRAME.registerShader('portal-shader-gyro', {
+    // --- 3. NEURAL FRACTAL SHADER ---
+    AFRAME.registerShader('neural-fractal', {
       schema: {
-        src: {type: 'map', is: 'uniform'},
-        uPan: {type: 'float', is: 'uniform', default: 0.0},
-        uTilt: {type: 'float', is: 'uniform', default: 0.0},
-        uZoom: {type: 'float', is: 'uniform', default: 3.0} 
+        uTime: {type: 'float', is: 'uniform', default: 0.0},
+        uColor: {type: 'vec3', is: 'uniform', default: {x: 0.0, y: 0.8, z: 1.0}} // Cyan/Blueish
       },
       vertexShader: `
-        varying vec3 vWorldPosition;
+        varying vec2 vUv;
         void main() {
-          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPosition.xyz;
+          vUv = uv;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
-        uniform sampler2D src;
-        uniform float uPan;
-        uniform float uTilt;
-        uniform float uZoom;
-        varying vec3 vWorldPosition;
-        const float PI = 3.14159265359;
+        uniform float uTime;
+        uniform vec3 uColor;
+        varying vec2 vUv;
+
+        // Random hash function for Voronoi
+        vec2 hash2(vec2 p) {
+            p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+            return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+        }
+
+        // Voronoi Noise Function
+        float voronoi(in vec2 x) {
+            vec2 n = floor(x);
+            vec2 f = fract(x);
+            float m_dist = 1.0; 
+
+            // Check 3x3 neighbor grid
+            for(int j=-1; j<=1; j++) {
+                for(int i=-1; i<=1; i++) {
+                    vec2 g = vec2(float(i), float(j));
+                    vec2 o = hash2(n + g);
+                    o = 0.5 + 0.5 * sin(uTime * 0.5 + 6.2831 * o); // Animate points slightly
+                    vec2 r = g + o - f;
+                    float d = length(r);
+                    m_dist = min(m_dist, d);
+                }
+            }
+            return m_dist;
+        }
+
         void main() {
-          vec3 dir = normalize(vWorldPosition);
-          float u = (atan(dir.z, dir.x) * uZoom) / (2.0 * PI) + 0.5;
-          float v = (asin(dir.y) * uZoom) / PI + 0.5;
-          u = mod(u - uPan, 1.0);
-          v = clamp(v + uTilt, 0.01, 0.99); 
-          vec4 color = texture2D(src, vec2(u, v));
-          gl_FragColor = color;
+          // Center coordinates
+          vec2 uv = vUv - 0.5;
+          
+          vec3 finalColor = vec3(0.0);
+          float t = uTime * 0.2; // Global animation speed
+
+          // Iterate layers for the "Infinite Zoom"
+          for(float i = 0.0; i < 4.0; i++) {
+              // Fractal Scale Logic:
+              // We create a loop where scale increases, then resets.
+              // To hide the reset, we fade the layer out as it gets too big.
+              float slide = fract(t + i * 0.25); // Offset each layer
+              float scale = pow(4.0, slide) * 2.0; // Exponential zoom
+              float fade = smoothstep(0.0, 0.2, slide) * smoothstep(1.0, 0.8, slide); // Fade in/out edges
+
+              vec2 localUv = uv * scale * (1.0 + i); // Position scaling
+              
+              // Calculate Voronoi pattern
+              float d = voronoi(localUv + i * 10.0); // Offset noise so layers look different
+              
+              // "Neural" styling: Invert distance to get glowing lines
+              float intensity = 0.05 / (d * d + 0.01);
+              intensity = smoothstep(0.0, 5.0, intensity);
+              
+              // Add color
+              finalColor += intensity * uColor * fade;
+          }
+
+          // Dark background, bright nodes
+          gl_FragColor = vec4(finalColor, 1.0);
         }
       `
     });
 
-    // --- 4. STL LOADER (Inline Parser) ---
+    // --- 4. STL LOADER ---
     AFRAME.registerComponent('stl-loader', {
       schema: {
         src: {type: 'string', default: ''},
@@ -130,111 +143,63 @@
         color: {type: 'string', default: '#808080'}
       },
       init: function() {
-        console.log('STL Loader Component Init');
         const self = this;
-        
-        // Fetch and parse STL file
         fetch(this.data.src)
-          .then(response => {
-            console.log('✓ STL file fetched:', response.status);
-            return response.arrayBuffer();
-          })
+          .then(response => response.arrayBuffer())
           .then(arrayBuffer => {
-            console.log('✓ STL buffer loaded, size:', arrayBuffer.byteLength);
             const geometry = self.parseSTL(arrayBuffer);
-            
-            // Center and scale
             geometry.center();
             geometry.scale(self.data.scale, self.data.scale, self.data.scale);
-            
-            const material = new THREE.MeshPhongMaterial({ 
-              color: self.data.color,
-              shininess: 100
-            });
+            const material = new THREE.MeshPhongMaterial({ color: self.data.color, shininess: 100 });
             const mesh = new THREE.Mesh(geometry, material);
-            
-            // Remove existing mesh if any
-            if (self.el.object3D.children.length > 0) {
-              self.el.object3D.remove(self.el.object3D.children[0]);
-            }
-            
+            if (self.el.object3D.children.length > 0) self.el.object3D.remove(self.el.object3D.children[0]);
             self.el.object3D.add(mesh);
-            console.log('✓ STL mesh added to scene');
           })
-          .catch(error => {
-            console.error('✗ Error loading STL:', error);
-          });
+          .catch(error => console.error('Error loading STL:', error));
       },
       parseSTL: function(arrayBuffer) {
         const view = new DataView(arrayBuffer);
-        const isASCII = this.isASCIISTL(arrayBuffer);
-        
-        if (isASCII) {
-          console.log('Parsing ASCII STL');
-          return this.parseASCIISTL(new TextDecoder().decode(arrayBuffer));
-        } else {
-          console.log('Parsing Binary STL');
-          return this.parseBinarySTL(view);
-        }
-      },
-      isASCIISTL: function(arrayBuffer) {
-        const view = new Uint8Array(arrayBuffer);
-        const header = new TextDecoder().decode(view.slice(0, 5));
-        return header === 'solid';
+        const isASCII = new TextDecoder().decode(new Uint8Array(arrayBuffer).slice(0, 5)) === 'solid';
+        return isASCII ? this.parseASCIISTL(new TextDecoder().decode(arrayBuffer)) : this.parseBinarySTL(view);
       },
       parseBinarySTL: function(view) {
         const faces = view.getUint32(80, true);
         const geometry = new THREE.BufferGeometry();
-        const vertices = [];
-        const normals = [];
-        
+        const vertices = [], normals = [];
         let offset = 84;
         for (let i = 0; i < faces; i++) {
           const nx = view.getFloat32(offset, true); offset += 4;
           const ny = view.getFloat32(offset, true); offset += 4;
           const nz = view.getFloat32(offset, true); offset += 4;
-          
           for (let j = 0; j < 3; j++) {
             vertices.push(view.getFloat32(offset, true)); offset += 4;
             vertices.push(view.getFloat32(offset, true)); offset += 4;
             vertices.push(view.getFloat32(offset, true)); offset += 4;
             normals.push(nx, ny, nz);
           }
-          
-          offset += 2; // attribute byte count
+          offset += 2;
         }
-        
         geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
         geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
-        
         return geometry;
       },
       parseASCIISTL: function(str) {
         const geometry = new THREE.BufferGeometry();
-        const vertices = [];
-        const normals = [];
-        
+        const vertices = [], normals = [];
         const vertexPattern = /vertex\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/g;
         const normalPattern = /facet\s+normal\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/g;
-        
-        let normal = [0, 0, 0];
-        let normalMatch;
+        let normal = [0, 0, 0], normalMatch;
         while ((normalMatch = normalPattern.exec(str))) {
           normal = [parseFloat(normalMatch[1]), parseFloat(normalMatch[3]), parseFloat(normalMatch[5])];
-          
-          // Extract 3 vertices after this normal
-          let count = 0;
-          let vertexMatch;
+          let count = 0, vertexMatch;
           while ((vertexMatch = vertexPattern.exec(str)) && count < 3) {
             vertices.push(parseFloat(vertexMatch[1]), parseFloat(vertexMatch[3]), parseFloat(vertexMatch[5]));
             normals.push(...normal);
             count++;
           }
         }
-        
         geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
         geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
-        
         return geometry;
       }
     });
@@ -248,6 +213,13 @@
     <button id="start-btn">Enter Experience</button>
   </div>
 
+  <script>
+    document.getElementById('start-btn').addEventListener('click', function() {
+      document.getElementById('overlay').style.display = 'none';
+      // Permission request is removed as it's no longer needed for gyro
+    });
+  </script>
+
   <a-scene 
     mindar-image="imageTargetSrc: ./targets.mind;" 
     color-space="sRGB" 
@@ -256,45 +228,29 @@
     device-orientation-permission-ui="enabled: false">
 
     <a-assets>
-      <img id="drone-360" src="./PXL_20250906_164653201.PANO.jpg" crossorigin="anonymous">
-      
       <a-mixin id="btn-bg" 
            geometry="primitive: box; width: 0.3; height: 0.12; depth: 0.04" 
-           material="shader: standard; 
-                     color: #ffffff; 
-                     metalness: 0.4; 
-                     roughness: 0.6;">
-      </a-mixin>
-
+           material="shader: standard; color: #ffffff; metalness: 0.4; roughness: 0.6;"></a-mixin>
       <a-mixin id="btn-text" 
              text="align: center; anchor: center; baseline: center; color: #000000; width: 0.9; wrapCount: 15;
                    font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/montserrat/Montserrat-Bold.json;
-                   shader: msdf; negate: true">
-      </a-mixin>
+                   shader: msdf; negate: true"></a-mixin>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false">
-      <a-entity light="type: directional; intensity: 1.2; castShadow: false" position="1 1 1"></a-entity>
-      <a-entity light="type: directional; intensity: 0.3; color: #aaddff" position="-1 -1 0.5"></a-entity>
-      <a-entity light="type: ambient; intensity: 0.2"></a-entity>
-
-      <a-entity cursor="fuse: false; rayOrigin: mouse;"
-                raycaster="objects: .clickable"
-                position="0 0 -1">
-      </a-entity>
+      <a-entity cursor="fuse: false; rayOrigin: mouse;" raycaster="objects: .clickable" position="0 0 -1"></a-entity>
     </a-camera>
 
     <a-entity mindar-image-target="targetIndex: 0">
       
       <a-plane 
-        gyro-sync
-        material="shader: portal-shader-gyro; src: #drone-360"
+        uniform-updater
+        material="shader: neural-fractal; uColor: 0.0 0.8 1.0"
         position="0 0 0" 
         width="1" height="0.6">
       </a-plane>
 
       <a-entity position="0 -0.4 0">
-        
         <a-entity position="0 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/cv"
                   geometry="primitive: plane; width: 0.45; height: 0.12"
                   material="opacity: 0.0; transparent: true">
@@ -315,7 +271,6 @@
           <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.8"></a-entity>
           <a-text value="Drone Videos" mixin="btn-text" position="0 -0.055 0.05"></a-text>
         </a-entity>
-
       </a-entity>
 
       <a-entity position="0 0 0.01">
@@ -325,10 +280,6 @@
          <a-plane position="0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
       </a-entity>
 
-      <!-- Test box to verify positioning -->
-      <!-- <a-box position="0 0.65 0" width="0.2" height="0.2" depth="0.2" color="#FF6600"></a-box> -->
-      
-      <!-- STL Model -->
       <a-entity position="0 0.65 0" stl-loader="src: ./illusion_perspective.stl; scale: 0.005; color: #FFA500"></a-entity>
 
     </a-entity>
