@@ -5,6 +5,7 @@
   <title>AR Portfolio Final</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@r128/examples/js/loaders/STLLoader.js"></script>
   
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; }
@@ -121,6 +122,36 @@
         }
       `
     });
+
+    // --- 4. STL LOADER ---
+    AFRAME.registerComponent('stl-loader', {
+      schema: {
+        src: {type: 'string', default: ''},
+        scale: {type: 'number', default: 1.0},
+        color: {type: 'string', default: '#808080'}
+      },
+      init: function() {
+        const loader = new THREE.STLLoader();
+        loader.load(this.data.src, (geometry) => {
+          // Center and scale the geometry
+          geometry.center();
+          geometry.scale(this.data.scale, this.data.scale, this.data.scale);
+          
+          const material = new THREE.MeshPhongMaterial({ 
+            color: this.data.color,
+            shininess: 100
+          });
+          const mesh = new THREE.Mesh(geometry, material);
+          
+          // Remove existing mesh if any
+          if (this.el.object3D.children.length > 0) {
+            this.el.object3D.remove(this.el.object3D.children[0]);
+          }
+          
+          this.el.object3D.add(mesh);
+        });
+      }
+    });
   </script>
 </head>
 <body>
@@ -207,6 +238,8 @@
          <a-plane position="-0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
          <a-plane position="0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
       </a-entity>
+
+      <a-entity position="0 0.65 0" stl-loader="src: ./illusion_perspective.stl; scale: 0.3; color: #FFA500"></a-entity>
 
     </a-entity>
   </a-scene>
