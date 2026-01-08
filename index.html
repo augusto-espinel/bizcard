@@ -131,25 +131,37 @@
         color: {type: 'string', default: '#808080'}
       },
       init: function() {
+        console.log('Loading STL from:', this.data.src);
         const loader = new THREE.STLLoader();
-        loader.load(this.data.src, (geometry) => {
-          // Center and scale the geometry
-          geometry.center();
-          geometry.scale(this.data.scale, this.data.scale, this.data.scale);
-          
-          const material = new THREE.MeshPhongMaterial({ 
-            color: this.data.color,
-            shininess: 100
-          });
-          const mesh = new THREE.Mesh(geometry, material);
-          
-          // Remove existing mesh if any
-          if (this.el.object3D.children.length > 0) {
-            this.el.object3D.remove(this.el.object3D.children[0]);
+        loader.load(
+          this.data.src,
+          (geometry) => {
+            console.log('STL loaded successfully:', geometry);
+            // Center and scale the geometry
+            geometry.center();
+            geometry.scale(this.data.scale, this.data.scale, this.data.scale);
+            
+            const material = new THREE.MeshPhongMaterial({ 
+              color: this.data.color,
+              shininess: 100
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // Remove existing mesh if any
+            if (this.el.object3D.children.length > 0) {
+              this.el.object3D.remove(this.el.object3D.children[0]);
+            }
+            
+            this.el.object3D.add(mesh);
+            console.log('STL mesh added to scene');
+          },
+          (progress) => {
+            console.log('STL loading progress:', Math.round(progress.loaded / progress.total * 100) + '%');
+          },
+          (error) => {
+            console.error('Error loading STL:', error);
           }
-          
-          this.el.object3D.add(mesh);
-        });
+        );
       }
     });
   </script>
