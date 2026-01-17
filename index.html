@@ -120,7 +120,7 @@
         if (!camComponent || !camComponent.camera) return;
         const threeCamera = camComponent.camera;
 
-        let closestDist = 0.15; // 15% of screen distance (The Threshold)
+        let closestDist = 0.3; // 30% of screen distance (The Threshold)
         let foundTarget = null;
 
         this.targets.forEach((target) => {
@@ -202,10 +202,10 @@
         width="30" height="30" position="0 0 -0.02"></a-plane>
 
       <a-entity position="0 0 0.01">
-         <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
-         <a-plane position="0 -0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
-         <a-plane position="-0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
-         <a-plane position="0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
+         <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #0055AF"></a-plane>
+         <a-plane position="0 -0.31 0" width="1.04" height="0.02" material="shader: flat; color: #0055AF"></a-plane>
+         <a-plane position="-0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #0055AF"></a-plane>
+         <a-plane position="0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #0055AF"></a-plane>
       </a-entity>
 
       <a-entity 
@@ -216,25 +216,25 @@
         scale="0.02 0.02 0.02"> 
       </a-entity>
 
-      <a-entity position="0 0.8 0.2" rotation="45 0 0" scale="1.5 1.5 1.5" 
+      <a-entity position="0 0.8 0.2" rotation="30 0 0" scale="1.5 1.5 1.5" 
                 class="selectable" data-url="https://linkedin.com">
         <a-text value="PROFILE" mixin="label-font" color="#AA0000" opacity="0.8" position="0 0.02 -0.005"></a-text>
         <a-text class="text-core" value="PROFILE" mixin="label-font" color="#FFFFFF"></a-text>
       </a-entity>
 
-      <a-entity position="0 -0.8 0.2" rotation="-45 0 0" scale="1.5 1.5 1.5" 
+      <a-entity position="0 -0.8 0.2" rotation="-30 0 0" scale="1.5 1.5 1.5" 
                 class="selectable" data-url="https://github.com">
         <a-text value="PROJECTS" mixin="label-font" color="#AA0000" opacity="0.8" position="0 -0.02 -0.005"></a-text>
         <a-text class="text-core" value="PROJECTS" mixin="label-font" color="#FFFFFF"></a-text>
       </a-entity>
 
-      <a-entity position="-0.9 0 0.2" rotation="0 45 0" scale="1.5 1.5 1.5" 
+      <a-entity position="-0.9 0 0.2" rotation="0 30 0" scale="1.5 1.5 1.5" 
                 class="selectable" data-url="mailto:test@example.com">
         <a-text value="EMAIL" mixin="label-font" align="center" color="#AA0000" opacity="0.8" position="-0.02 0 -0.005"></a-text>
         <a-text class="text-core" value="EMAIL" mixin="label-font" align="center" color="#FFFFFF"></a-text>
       </a-entity>
 
-      <a-entity position="0.9 0 0.2" rotation="0 -45 0" scale="1.5 1.5 1.5" 
+      <a-entity position="0.9 0 0.2" rotation="0 -30 0" scale="1.5 1.5 1.5" 
                 class="selectable" data-url="tel:+123456789">
         <a-text value="CALL" mixin="label-font" align="center" color="#AA0000" opacity="0.8" position="0.02 0 -0.005"></a-text>
         <a-text class="text-core" value="CALL" mixin="label-font" align="center" color="#FFFFFF"></a-text>
