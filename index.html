@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TRON AR - Final Animation</title>
+  <title>TRON AR - Static Red Illusion</title>
   
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -66,29 +66,44 @@
       }
     });
 
-    // --- 3. UI LOGIC (Triggers Animation) ---
+    // --- 3. RED WIREFRAME STYLE ---
+    AFRAME.registerComponent('style-red-wireframe', {
+      init: function() {
+        this.el.addEventListener('model-loaded', () => {
+          const object = this.el.getObject3D('mesh');
+          if (!object) return;
+          const meshes = [];
+          object.traverse((node) => { if (node.isMesh) meshes.push(node); });
+
+          meshes.forEach((node) => {
+            // Dark Red Solid Base
+            node.material = new THREE.MeshStandardMaterial({
+              color: 0x330000, metalness: 0.6, roughness: 0.4
+            });
+            // Bright Red Wireframe Overlay
+            const wireMesh = new THREE.Mesh(
+              node.geometry,
+              new THREE.MeshBasicMaterial({
+                color: 0xFF0000, wireframe: true, transparent: true, opacity: 0.8
+              })
+            );
+            node.add(wireMesh);
+          });
+        });
+      }
+    });
+
+    // --- 4. UI LOGIC (Simplified) ---
     AFRAME.registerComponent('ui-logic', {
       init: function() {
         const btn = document.getElementById('start-btn');
         btn.addEventListener('click', () => {
           document.getElementById('overlay').style.display = 'none';
-          
-          // Wait 500ms then start the drop
-          setTimeout(() => {
-            const obj = document.getElementById('illusion-obj');
-            // We enable the animation attribute manually to force start
-            obj.setAttribute('animation', {
-              property: 'position',
-              to: '0 0 0.02',    // End Position (2cm above card)
-              dur: 4000,         // Duration (4 seconds)
-              easing: 'easeOutCubic' // Starts fast, ends slow
-            });
-          }, 500);
         });
       }
     });
 
-    // --- 4. INTERACTION ---
+    // --- 5. INTERACTION ---
     AFRAME.registerComponent('clickable-text', {
       init: function() {
         this.el.addEventListener('click', () => {
@@ -102,51 +117,6 @@
         this.el.addEventListener('mouseleave', () => {
           this.el.setAttribute('scale', '1 1 1');
           this.el.querySelector('.text-core').setAttribute('color', '#FFFFFF');
-        });
-      }
-    });
-
-    // --- COMPONENT: DARK RED SOLID + BRIGHT RED WIREFRAME ---
-    AFRAME.registerComponent('style-red-wireframe', {
-      init: function() {
-        this.el.addEventListener('model-loaded', () => {
-          const object = this.el.getObject3D('mesh');
-          if (!object) return;
-
-          const meshes = [];
-          
-          // 1. Find all mesh parts in the model
-          object.traverse((node) => {
-            if (node.isMesh) {
-              meshes.push(node);
-            }
-          });
-
-          // 2. Apply Styles
-          meshes.forEach((node) => {
-            // A. The Solid Base (Dark Red)
-            // We replace the existing material with a dark, metallic red
-            node.material = new THREE.MeshStandardMaterial({
-              color: 0x330000,  // Dark Blood Red
-              metalness: 0.6,
-              roughness: 0.4,
-            });
-
-            // B. The Wireframe Overlay (Bright Red)
-            // Create a clone of the geometry
-            const wireMesh = new THREE.Mesh(
-              node.geometry,
-              new THREE.MeshBasicMaterial({
-                color: 0xFF0000, // Neon Red
-                wireframe: true,
-                transparent: true,
-                opacity: 0.8
-              })
-            );
-            
-            // Add the wireframe as a child of the solid object
-            node.add(wireMesh);
-          });
         });
       }
     });
@@ -191,11 +161,11 @@
          <a-plane position="0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
       </a-entity>
 
-<a-entity 
+      <a-entity 
         id="illusion-obj"
         gltf-model="#illusion-model"
-        style-red-wireframe 
-        position="0 0 4" 
+        style-red-wireframe
+        position="0 0 0.04" 
         scale="0.02 0.02 0.02"> 
       </a-entity>
 
