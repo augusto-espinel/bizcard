@@ -4,8 +4,10 @@
 Short guidance for AI agents working on this repo: modify A-Frame + MindAR scenes, add interactive buttons, and debug gyro/shader behavior for mobile AR.
 
 ## Quick start & testing ⚡
-- This is a static site. Serve locally (HTTPS or localhost required for DeviceOrientation):
+- This is a static site. Serve locally (HTTPS or localhost required for DeviceOrientation / iOS):
   - python -m http.server 8000
+  - Or use any static server that serves over localhost/HTTPS.
+- Key versions to keep consistent: A-Frame 1.5.0, MindAR 1.2.5 (refer to `<script>` tags in `index.html`).
 - Open `index.html` on a mobile device (iOS requires explicit permission via the start flow).
 - Use `debug.html` to view on-screen logs and `debug2.html` for stencil/mask experiments.
 
@@ -39,8 +41,68 @@ Short guidance for AI agents working on this repo: modify A-Frame + MindAR scene
 - For panorama/shader changes, adjust shader uniforms (e.g., `uPan`, `uTilt`, `uDist`) and vertical clamps and test in `debug2.html` if using masks.
 
 ## PR & development conventions ✍️
-- Keep UI interactions built with `.clickable` + `link-handler` for consistency.
-- No build system — small changes, test locally via a static server.
+- Keep interactive elements implemented with `.clickable` + `link-handler` for consistency. Use `btn-bg`/`btn-text` mixins for consistent UI and rely on `link-handler` for `mouseenter`/`mouseleave` hover effects (color/scale).
+- Small repo: **no build system** — run a local static server and test changes directly (see Quick start).  
+- Preserve shader semantics when refactoring: `uPan`, `uTilt`, `uDist` are expected by `neural-parallax` and `interaction-sync`.  
+- `targets.mind` is produced in MindAR Studio — **do not hand-edit**. Replace via the studio when changing tracking targets.
 
 ---
-If anything in these notes is unclear or you'd like more examples (e.g., how `gyro-sync` maps orientation to `uPan`), tell me which section to expand.
+## Troubleshooting tips 💡
+- Image not showing? Check filename, `crossorigin="anonymous"`, and open `debug.html` to read the `#debug-console` (look for `ERROR: Image failed to load.`).
+- Shaders not updating? Verify `this.el.getObject3D('mesh').material.uniforms` exists, and `interaction-sync` `tick()` is running; check `uTime`, `uPan`, `uTilt`, `uDist` values.
+- DeviceOrientation not prompting on iOS? Confirm `#start-btn` runs on a user gesture and calls `DeviceOrientationEvent.requestPermission()`; otherwise overlay won't hide.
+- Tracking not found? Ensure `mindar-image` points to `./targets.mind` and that your physical card matches the studio-generated target.
+
+---
+## Quick code snippets ✂️
+Copy these short examples into your scene when you need to add common elements quickly.
+
+- **Button (Resume)**
+```html
+<a-entity class="clickable" link-handler data-url="https://yourwebsite.com/cv"
+          geometry="primitive: plane; width: 0.45; height: 0.12" material="opacity: 0.0; transparent: true">
+  <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.45"></a-entity>
+  <a-text value="Resume" mixin="btn-text" position="0 -0.055 0.05"></a-text>
+</a-entity>
+```
+
+- **Add an STL model (use the `stl-loader`)**
+```html
+<a-entity position="0 0.65 0" stl-loader="src: ./models/my_model.stl; scale: 0.005; color: #FFA500"></a-entity>
+```
+Notes: put your `.stl` in the repo, pick a scale, and `stl-loader` will `center()` and `scale()` the geometry.
+
+- **Stencil mask pattern (see `debug2.html`)**
+Mask plane:
+```html
+<a-plane id="mask-plane" stencil-setup position="0 0 0" width="1" height="0.6"></a-plane>
+```
+Content (renders only where mask wrote stencil ref):
+```html
+<a-sphere id="content-sphere" stencil-setup color="yellow" wireframe="true" radius="10" position="0 0 -5"></a-sphere>
+```
+Note: `stencil-setup` sets `renderOrder`, `colorWrite`, `stencilWrite`, `stencilFunc`, and `stencilZPass` as needed.
+
+- **Start flow (iOS DeviceOrientation permission)**
+```js
+document.getElementById('start-btn').addEventListener('click', () => {
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(res => { if (res === 'granted') document.getElementById('overlay').style.display = 'none'; })
+      .catch(console.error);
+  } else {
+    document.getElementById('overlay').style.display = 'none';
+  }
+});
+```
+
+- **Debug console (use `debug.html`)**
+Use the `log(msg)` helper and `#debug-console` to surface texture load errors and tracking events. Example:
+```js
+const target = document.querySelector('#mytarget');
+target.addEventListener('targetFound', () => log('SUCCESS: Card Tracked!'));
+```
+
+---
+If you'd like additional snippets or a 1-page quick checklist, tell me which ones to add.
+

@@ -21,7 +21,36 @@
   </style>
 
   <script>
-    // --- 1. LINK HANDLER (Restored) ---
+    // --- DEPTH FADE COMPONENT ---
+    // Gradually fade wall opacity based on z-depth to simulate well depth
+    AFRAME.registerComponent('depth-fade', {
+      init: function() {
+        this.el.addEventListener('loaded', () => this.updateMaterial());
+        this.updateMaterial();
+      },
+      tick: function(time, deltaTime) {
+        const mesh = this.el.getObject3D('mesh');
+        if (!mesh || !mesh.material) return;
+        
+        const worldPos = new THREE.Vector3();
+        this.el.object3D.getWorldPosition(worldPos);
+        
+        // Z position ranges from 0 (fractal) to -2 (far wall)
+        // Map to opacity: 0 → 0.9 (more opaque), -2 → 0.2 (more transparent)
+        const depthAlpha = 0.9 + (worldPos.z / -2.0) * (0.2 - 0.9);
+        mesh.material.opacity = Math.max(0.2, Math.min(0.9, depthAlpha));
+      },
+      updateMaterial: function() {
+        const mesh = this.el.getObject3D('mesh');
+        if (mesh && mesh.material) {
+          mesh.material.transparent = true;
+          // Set renderOrder to 2 so walls render AFTER mask writes stencil (mask is renderOrder 1)
+          this.el.object3D.renderOrder = 2;
+        }
+      }
+    });
+
+    // --- LINK HANDLER (Restored) ---
     AFRAME.registerComponent('link-handler', {
       init: function () {
         this.el.addEventListener('click', (e) => {
@@ -85,7 +114,20 @@
       },
       tick: function(t, dt) {
         const mesh = this.el.getObject3D('mesh');
-        if(!mesh || !mesh.material.uniforms) return;
+        if (!mesh || !mesh.material) {
+          if (window.log) window.log('interaction-sync: mesh or material missing');
+          console.log('interaction-sync: mesh or material missing', this.el);
+          return;
+        }
+        if (!mesh.material.uniforms) {
+          if (!this._warnedMissingUniforms) {
+            if (window.log) window.log('interaction-sync: shader uniforms not yet available');
+            console.log('interaction-sync: shader uniforms not yet available', mesh.material);
+            this._warnedMissingUniforms = true;
+          }
+          return;
+        }
+        this._warnedMissingUniforms = false;
 
         // 1. UPDATE TIME
         mesh.material.uniforms.uTime.value = t / 1000;
@@ -105,6 +147,11 @@
         const dist = targetPos.distanceTo(camPos);
         // Pass distance to shader (Clamped to reasonable AR distances 0.0 to 2.0 meters)
         mesh.material.uniforms.uDist.value = dist;
+
+        // Optional: push short status into on-screen debugger if present
+        if (window.updateDebugUniforms && mesh.material.uniforms) {
+          window.updateDebugUniforms({uPan: mesh.material.uniforms.uPan.value, uTilt: mesh.material.uniforms.uTilt.value, uDist: mesh.material.uniforms.uDist.value});
+        }
       }
     });
 
@@ -229,14 +276,11 @@
               finalColor += col;
           }
 
-          // 5. Vignette mask to make it look like a hole
-          float distFromCenter = length(uv);
-          float vignette = 1.0 - smoothstep(0.3, 0.5, distFromCenter);
-          
+          // 5. No vignette - let fractal extend to edges
           // Apply Proximity Brightness
-          finalColor *= (visibility * 1.5); 
+          finalColor *= (visibility * 1.5);
 
-          gl_FragColor = vec4(finalColor * vignette, 1.0);
+          gl_FragColor = vec4(finalColor, 1.0);
         }
       `
     });
@@ -304,6 +348,180 @@
         return geometry;
       }
     });
+    // STENCIL SETUP COMPONENT (adapted from debug2.html)
+    AFRAME.registerComponent('stencil-setup', {
+      init: function() {
+        this.el.addEventListener('loaded', () => { this.updateConfig(); });
+        // Force update immediately in case it's already loaded
+        this.updateConfig();
+      },
+      updateConfig: function() {
+        const mesh = this.el.getObject3D('mesh');
+        if (!mesh) {
+          // Retry a few times if mesh isn't present yet
+          this._tries = (this._tries || 0) + 1;
+          const msg = `stencil-setup: no mesh yet for ${this.el.id || this.el.tagName} (try ${this._tries})`;
+          console.log(msg);
+          if (window.log) window.log(msg);
+          if (this._tries < 6) setTimeout(() => this.updateConfig(), 250);
+          return;
+        }
+
+        const isMask = this.el.getAttribute('id') === 'mask-plane';
+
+        if (isMask) {
+          console.log("Configuring MASK", this.el);
+          if (window.log) window.log('Configuring MASK');
+          this.el.object3D.renderOrder = 1; 
+
+          mesh.material.colorWrite = false; // Invisible
+          mesh.material.depthWrite = false; 
+          mesh.material.stencilWrite = true;
+          mesh.material.stencilRef = 1;
+          mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
+          mesh.material.stencilZPass = THREE.ReplaceStencilOp; 
+
+          // Log material properties for debugging
+          const props = {
+            colorWrite: mesh.material.colorWrite,
+            depthWrite: mesh.material.depthWrite,
+            stencilWrite: mesh.material.stencilWrite,
+            stencilRef: mesh.material.stencilRef,
+            stencilFunc: mesh.material.stencilFunc,
+            stencilZPass: mesh.material.stencilZPass,
+            renderOrder: this.el.object3D.renderOrder
+          };
+          console.log('MASK material props', props);
+          if (window.log) window.log('MASK material props: ' + JSON.stringify(props));
+
+          // Debug helper: if data-debug-mask="true" is present, make the mask visible for alignment
+          if (this.el.getAttribute('data-debug-mask') === 'true') {
+            mesh.material.colorWrite = true;
+            mesh.material.opacity = 0.25;
+            mesh.material.color = new THREE.Color(0xff00ff);
+            console.log('MASK visible for debug (data-debug-mask=true)');
+            if (window.log) window.log('MASK visible for debug');
+          }
+        } else {
+          console.log("Configuring CONTENT", this.el);
+          if (window.log) window.log('Configuring CONTENT');
+          this.el.object3D.renderOrder = 2; 
+
+          // keep side default for planes; content gets stencil equality
+          mesh.material.stencilWrite = true;
+          mesh.material.stencilRef = 1;
+          mesh.material.stencilFunc = THREE.EqualStencilFunc; 
+
+          const props = { stencilWrite: mesh.material.stencilWrite, stencilRef: mesh.material.stencilRef, stencilFunc: mesh.material.stencilFunc, renderOrder: this.el.object3D.renderOrder };
+          console.log('CONTENT material props', props);
+          if (window.log) window.log('CONTENT material props: ' + JSON.stringify(props));
+        }
+      }
+    });
+
+    // Component to set stencil equal without changing side
+    AFRAME.registerComponent('stencil-equal', {
+      init: function() {
+        this.el.addEventListener('loaded', () => this.updateConfig());
+        this.updateConfig();
+      },
+      updateConfig: function() {
+        const mesh = this.el.getObject3D('mesh');
+        if (!mesh || !mesh.material) return;
+        mesh.material.stencilWrite = false;
+        mesh.material.stencilRef = 0;       // Render where stencil == 0 (OUTSIDE mask)
+        mesh.material.stencilFunc = THREE.EqualStencilFunc;
+        mesh.material.side = THREE.DoubleSide;
+        mesh.material.transparent = true;
+
+        console.log('stencil-equal applied', this.el, {
+          stencilWrite: mesh.material.stencilWrite,
+          stencilRef: mesh.material.stencilRef,
+          stencilFunc: mesh.material.stencilFunc,
+          side: mesh.material.side,
+          transparent: mesh.material.transparent
+        });
+      }
+    });
+
+    // Portal wall shader: fades with view depth so walls blend into fractal
+    AFRAME.registerShader('portal-wall', {
+      schema: {
+        uColor: {type: 'vec3', is: 'uniform', default: {x: 0.1, y: 0.15, z: 0.25}},
+        uNear: {type: 'float', is: 'uniform', default: 0.1},
+        uFar: {type: 'float', is: 'uniform', default: 3.0},
+        uPower: {type: 'float', is: 'uniform', default: 1.5}
+      },
+      vertexShader: `
+        varying float vDepth;
+        void main() {
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          vDepth = -mvPos.z;
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform float uNear;
+        uniform float uFar;
+        uniform float uPower;
+        varying float vDepth;
+        void main() {
+          float t = clamp((vDepth - uNear) / (uFar - uNear), 0.0, 1.0);
+          float alpha = pow(1.0 - t, uPower);
+          gl_FragColor = vec4(uColor, alpha);
+        }
+      `
+    });
+    AFRAME.registerComponent('segmented-tunnel', {
+  schema: {
+    count: {type: 'int', default: 10}, // How many slices?
+    totalDepth: {type: 'number', default: 1.0}, // How deep is the tunnel?
+    color: {type: 'color', default: '#4a6fa5'}
+  },
+  init: function () {
+    let zPos = 0;
+    
+    for (let i = 0; i < this.data.count; i++) {
+      // Random length for this specific segment (between 0.02 and 0.1)
+      let segDepth = 0.02 + Math.random() * 0.08;
+      
+      // Add a small gap between boxes so they look separate
+      let gap = 0.02; 
+      
+      // Calculate center Z for this segment
+      let currentCenterZ = zPos - (segDepth / 2);
+
+      // Create the 4 walls for this slice
+      this.createWall(0.53, 0, currentCenterZ, 0.02, 0.65, segDepth); // Right
+      this.createWall(-0.53, 0, currentCenterZ, 0.02, 0.65, segDepth); // Left
+      this.createWall(0, 0.32, currentCenterZ, 1.06, 0.02, segDepth); // Top
+      this.createWall(0, -0.32, currentCenterZ, 1.06, 0.02, segDepth); // Bottom
+      
+      // Move Z cursor for next loop
+      zPos -= (segDepth + gap);
+    }
+  },
+
+  createWall: function (x, y, z, w, h, d) {
+    let el = document.createElement('a-box');
+    el.setAttribute('position', {x: x, y: y, z: z});
+    el.setAttribute('width', w);
+    el.setAttribute('height', h);
+    el.setAttribute('depth', d);
+    el.setAttribute('material', {
+      color: this.data.color, 
+      transparent: true, 
+      opacity: 0.9
+    });
+    
+    // Add your portal logic components
+    el.setAttribute('stencil-equal', '');
+    el.setAttribute('depth-fade', '');
+    
+    this.el.appendChild(el);
+  }
+});
   </script>
 </head>
 <body>
@@ -332,12 +550,30 @@
 
     <a-entity mindar-image-target="targetIndex: 0">
       
+      <!-- Mask for portal: writes stencil where the window appears -->
+      <a-plane id="mask-plane" stencil-setup position="0 0 -0.1" width="1.05" height="0.605" material="opacity:1; transparent:true"></a-plane>
+
+      <!-- Main portal fractal -->
       <a-plane 
         interaction-sync
         material="shader: neural-parallax; uColor: 0.1 0.8 1.0; transparent: true"
         position="0 0 0" 
         width="1.05" height="0.605">
       </a-plane>
+
+      <!-- Portal walls: only render inside stencil (inside card portal) -->
+      <!-- <a-entity id="portal-walls"> -->
+        <!-- Left wall -->
+        <!-- <a-box position="-0.53 0 -0.23" width="0.02" height="0.65" depth="0.5" material="color: #4a6fa5; transparent: true; opacity: 0.8" stencil-equal depth-fade></a-box> -->
+        <!-- Right wall -->
+        <!-- <a-box position="0.53 0 -0.23" width="0.02" height="0.65" depth="0.5" material="color: #4a6fa5; transparent: true; opacity: 0.8" stencil-equal depth-fade></a-box> -->
+        <!-- Top wall -->
+        <!-- <a-box position="0 0.32 -0.23" width="1.06" height="0.02" depth="0.5" material="color: #4a6fa5; transparent: true; opacity: 0.8" stencil-equal depth-fade></a-box> -->
+        <!-- Bottom wall -->
+        <!-- <a-box position="0 -0.32 -0.23" width="1.06" height="0.02" depth="0.5" material="color: #4a6fa5; transparent: true; opacity: 0.8" stencil-equal depth-fade></a-box> -->
+      <!-- </a-entity> -->
+
+      <a-entity position="0 0 0.1" segmented-tunnel="count: 6; totalDepth: 0.5"></a-entity>
 
       <a-entity position="0 -0.4 0">
         <a-entity position="0 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/cv"
@@ -365,6 +601,107 @@
          <a-plane position="-0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
          <a-plane position="0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
       </a-entity>
+
+      <script>
+        // On-screen debug console and helpers
+        (function(){
+          function qs(name) { return (new URL(location.href)).searchParams.get(name); }
+          const debugMode = qs('debug') === '1' || localStorage.getItem('AR_DEBUG') === '1';
+
+          // create a compact on-screen debug panel
+          const el = document.createElement('div');
+          el.id = 'ar-debug-ui';
+          el.style.position = 'absolute';
+          el.style.left = '10px';
+          el.style.bottom = '10px';
+          el.style.width = 'calc(100% - 20px)';
+          el.style.maxHeight = '200px';
+          el.style.overflow = 'auto';
+          el.style.background = 'rgba(0,0,0,0.6)';
+          el.style.color = 'lime';
+          el.style.fontFamily = 'monospace';
+          el.style.padding = '8px';
+          el.style.zIndex = '10000';
+          el.style.fontSize = '12px';
+          el.innerHTML = '<div id="ar-debug-header">AR Debug Console (click to toggle)</div><div id="ar-debug-body"></div>';
+          document.body.appendChild(el);
+
+          window.log = function(msg){
+            const b = document.getElementById('ar-debug-body');
+            if(!b) return;
+            const d = document.createElement('div');
+            d.textContent = '> ' + msg;
+            b.appendChild(d);
+            b.scrollTop = b.scrollHeight;
+            console.log(msg);
+          };
+
+          // minimal status checks
+          window.log('AFRAME MindAR present? ' + !!(window.AFRAME && AFRAME.components && AFRAME.components['mindar-image']));
+          const target = document.querySelector('a-entity[mindar-image-target]');
+          if (target) {
+            target.addEventListener('targetFound', () => window.log('TARGET FOUND'));
+            target.addEventListener('targetLost', () => window.log('TARGET LOST'));
+          } else {
+            window.log('No mindar-image-target element found in DOM');
+          }
+
+          // auto-enable visible mask in debug mode
+          if (debugMode) {
+            window.log('Debug mode active: enabling visual mask');
+            const mask = document.getElementById('mask-plane');
+            if (mask) mask.setAttribute('data-debug-mask', 'true');
+
+            // Also force a visible fallback for the fractal plane so we can tell if stencil or shader is the problem
+            const plane = document.querySelector('a-plane[interaction-sync]');
+            if (plane) {
+              const tryShow = () => {
+                const mesh = plane.getObject3D('mesh');
+                if (!mesh || !mesh.material) {
+                  window.log('Debug fallback: plane material not ready yet, retrying');
+                  setTimeout(tryShow, 200);
+                  return;
+                }
+                try {
+                  mesh.material.colorWrite = true;
+                  mesh.material.opacity = 0.85;
+                  // If it's a shader material, set a temporary uniform color to make it visible if needed
+                  if (mesh.material.uniforms && mesh.material.uniforms.uColor) {
+                    mesh.material.uniforms.uColor.value = {x:0.2, y:0.6, z:1.0};
+                  }
+                  window.log('Debug fallback: made fractal plane visible (no-stencil fallback)');
+                } catch (e) { console.error(e); }
+              };
+              tryShow();
+            }
+          }
+
+          // helper to show uniform state periodically
+          function showUniforms() {
+            const plane = document.querySelector('a-plane[interaction-sync]');
+            if (!plane) return;
+            const mesh = plane.getObject3D('mesh');
+            if (!mesh || !mesh.material) { window.log('interaction plane material not found'); return; }
+            const u = mesh.material.uniforms || {};
+            window.log('uniforms: ' + Object.keys(u).map(k => k + '=' + (u[k] && u[k].value !== undefined ? (Array.isArray(u[k].value)?'vec':'')+u[k].value : 'n/a')).join(' | '));
+          }
+          setTimeout(showUniforms, 2000);
+          setTimeout(showUniforms, 5000);
+
+          window.updateDebugUniforms = function(obj) {
+            const s = document.getElementById('ar-debug-uniforms');
+            if (!s) {
+              const node = document.createElement('div'); node.id = 'ar-debug-uniforms'; document.getElementById('ar-debug-body').appendChild(node);
+            }
+            document.getElementById('ar-debug-uniforms').textContent = JSON.stringify(obj);
+          };
+
+          // header toggle
+          const header = document.getElementById('ar-debug-header');
+          header.style.cursor = 'pointer';
+          header.addEventListener('click', ()=>{ el.style.display = (el.style.display==='none'?'block':'none'); });
+        })();
+      </script>
 
       <a-entity position="0 0.65 0" stl-loader="src: ./illusion_perspective.stl; scale: 0.005; color: #FFA500"></a-entity>
 
