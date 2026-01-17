@@ -2,92 +2,45 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TRON AR Portal</title>
+  <title>TRON AR Spillover Effect</title>
   
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&amp;family=Share+Tech+Mono&amp;display=swap" rel="stylesheet">
 
   <style>
-    /* TRON UI THEME */
     body { margin: 0; overflow: hidden; background: #000; font-family: 'Share Tech Mono', monospace; }
 
-    /* 1. The Overlay (Scanning UI) */
     #overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0, 5, 10, 0.95); /* The Void */
+      background: rgba(0, 5, 10, 0.95);
       display: flex; flex-direction: column;
       justify-content: center; align-items: center; z-index: 9999;
-      color: #00E5FF; /* Circuit Cyan */
+      color: #00E5FF;
     }
-
-    h1 {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 2rem;
-      text-transform: uppercase;
-      letter-spacing: 4px;
-      margin-bottom: 10px;
-      /* The Glow Formula (Text) */
-      text-shadow: 0 0 5px #FFFFFF, 0 0 10px #00E5FF, 0 0 20px #0078FF;
-    }
-
-    p { font-size: 1rem; color: #0078FF; letter-spacing: 1px; }
-
-    /* 2. The Button (Start) */
+    h1 { font-family: 'Orbitron', sans-serif; font-size: 2rem; text-align: center; text-shadow: 0 0 10px #00E5FF; }
     #start-btn {
-      background: transparent;
-      color: #FFFFFF;
-      font-family: 'Orbitron', sans-serif;
-      font-size: 1.2rem;
-      padding: 15px 40px;
-      border: 2px solid #00E5FF;
-      cursor: pointer;
-      margin-top: 30px;
-      position: relative;
-      overflow: hidden;
-      transition: 0.3s;
-      /* The Glow Formula (Box) */
+      background: transparent; color: #FFFFFF; font-family: 'Orbitron', sans-serif; font-size: 1.2rem;
+      padding: 15px 40px; border: 2px solid #00E5FF; cursor: pointer; margin-top: 30px;
       box-shadow: 0 0 4px #00E5FF, inset 0 0 4px #00E5FF;
     }
-
-    #start-btn:hover {
-      background: rgba(0, 229, 255, 0.2);
-      box-shadow: 0 0 15px #00E5FF, inset 0 0 15px #00E5FF;
-    }
-
-    /* 3. Progress Bar (Tron Style) */
-    .loader {
-      width: 200px; height: 4px;
-      background: #00050A;
-      margin-top: 20px;
-      border: 1px solid #0078FF;
-      position: relative;
-    }
-    .loader::after {
-      content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 0%;
-      background: #00E5FF;
-      animation: load 2s ease-in-out infinite;
-      box-shadow: 0 0 10px #00E5FF;
-    }
-    @keyframes load { 0% {width: 0%;} 50% {width: 100%;} 100% {width: 0%; left: 100%;} }
-
   </style>
 
   <script>
-    // --- 1. THE GRID SHADER (Procedural - No Image Needed) ---
-    // Generates an infinite scrolling neon grid based on view angle
-    AFRAME.registerShader('grid-portal', {
+    // --- 1. SPILLOVER TUNNEL SHADER ---
+    AFRAME.registerShader('spillover-tunnel', {
       schema: {
         color: {type: 'color', is: 'uniform', default: '#00E5FF'},
-        time: {type: 'time', is: 'uniform'}
+        time: {type: 'float', is: 'uniform', default: 0.0}
       },
+      // We pass the local position (vPos) to calculate physical size
       vertexShader: `
         varying vec3 vPos;
         void main() {
-          vPos = position;
+          vPos = position; 
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
@@ -97,100 +50,86 @@
         varying vec3 vPos;
         
         void main() {
-          // Create a perspective grid effect
-          // We use the pixel position to simulate depth
-          float scale = 10.0;
-          float t = time * 0.0005; // Scroll speed
+          // --- A. TUNNEL GENERATION ---
+          // vPos.x and vPos.y are the physical distance from the center of the card
           
-          // Math to draw lines
-          float x = abs(sin(vPos.x * scale));
-          float y = abs(sin((vPos.y + t) * scale)); // Moving Y
+          // 1. Calculate Tunnel Coordinates
+          // Square shape math:
+          float r = max(abs(vPos.x), abs(vPos.y)); 
+          float a = atan(vPos.y, vPos.x);
           
-          // Thickness of lines
-          float thickness = 0.05;
-          float glow = 0.0;
+          // Z (Depth) = 1/r creates the "vanishing point" effect
+          float z = 1.0 / r + (time * 0.5); 
+
+          // 2. Generate Grid Lines
+          float gridH = fract(z * 4.0);       // Incoming rings
+          float gridV = fract(a * 4.0 / 3.14159); // Radial lines
           
-          if(x < thickness) glow += 1.0 - (x / thickness);
-          if(y < thickness) glow += 1.0 - (y / thickness);
+          // 3. Line Sharpness
+          // Lines get thinner as they get further away (smaller r)
+          float thickness = 0.05 * r; 
           
-          // Fade out towards the edges (vignette) to simulate "Void"
-          float dist = distance(vPos.xy, vec2(0.0));
-          float mask = 1.0 - smoothstep(0.3, 0.7, dist);
+          float lineH = step(1.0 - thickness, gridH);
+          float lineV = step(0.95, gridV);
           
-          vec3 finalColor = color * glow * mask;
+          float gridVal = max(lineH, lineV);
           
-          // Mix with the "Void" background color (#00050A)
-          gl_FragColor = vec4(finalColor + vec3(0.0, 0.02, 0.04), 1.0);
+          // --- B. THE MASK (The Window) ---
+          // Define the physical limits of the card:
+          // Width: 1.0m (from -0.5 to 0.5)
+          // Height: 0.6m (from -0.3 to 0.3)
+          float inWindowX = step(abs(vPos.x), 0.5);
+          float inWindowY = step(abs(vPos.y), 0.3);
+          float inWindow = inWindowX * inWindowY; // 1.0 if inside, 0.0 if outside
+
+          // --- C. FINAL COLOR MIXING ---
+          
+          // 1. The Grid Color (Always visible)
+          vec3 gridColor = color * gridVal;
+          
+          // 2. The Void Background (Only visible inside window)
+          vec3 voidColor = vec3(0.0, 0.02, 0.05); // Deep Navy
+          
+          // Mix the RGB:
+          // If in window: Grid + Void
+          // If outside: Grid only
+          vec3 finalRGB = gridColor + (voidColor * inWindow);
+
+          // 3. The Alpha (Transparency)
+          // If in window: 1.0 (Fully Opaque)
+          // If outside: Equal to gridVal (Only lines are opaque, rest is transparent)
+          float finalAlpha = max(gridVal, inWindow);
+
+          gl_FragColor = vec4(finalRGB, finalAlpha);
         }
       `
     });
 
-    // --- 2. GLITCH REVEAL (Animation) ---
-    // Scales the portal up from 0 with a bounce when found
-    AFRAME.registerComponent('glitch-reveal', {
-      init: function() {
-        this.el.setAttribute('visible', false);
-        const target = document.querySelector('[mindar-image-target]');
-        
-        target.addEventListener('targetFound', () => {
-          this.el.setAttribute('visible', true);
-          // Animate Scale
-          this.el.setAttribute('animation', {
-            property: 'scale',
-            from: '0 0.001 1', /* Start as a thin line */
-            to: '1 1 1',
-            dur: 800,
-            easing: 'easeOutElastic'
-          });
-          // Play a "Rez-up" sound if you added audio
-        });
+    // --- 2. CLOCK ---
+    AFRAME.registerComponent('shader-clock', {
+      tick: function (time, timeDelta) {
+        const mesh = this.el.getObject3D('mesh');
+        if(mesh && mesh.material.uniforms) {
+          mesh.material.uniforms.time.value = time / 1000; 
+        }
+      }
+    });
 
-        target.addEventListener('targetLost', () => {
-           this.el.setAttribute('visible', false);
-           this.el.setAttribute('scale', '0 0 0');
+    // --- 3. UI LOGIC ---
+    AFRAME.registerComponent('ui-logic', {
+      init: function() {
+        document.getElementById('start-btn').addEventListener('click', () => {
+          document.getElementById('overlay').style.display = 'none';
         });
       }
     });
 
-    // --- 3. DATA DISC BEHAVIOR (Hover & Click) ---
+    // --- 4. CLICK LOGIC ---
     AFRAME.registerComponent('data-disc', {
       init: function() {
         this.el.addEventListener('click', () => {
           const url = this.el.getAttribute('data-url');
           if(url) window.open(url, '_blank');
-        });
-        
-        // Hover State: Pulse Color
-        this.el.addEventListener('mouseenter', () => {
-          this.el.setAttribute('scale', '1.2 1.2 1.2');
-          // Switch to CLU Yellow on hover
-          this.el.querySelector('.disc-mesh').setAttribute('material', 'emissive', '#FFFB00');
-        });
-        
-        this.el.addEventListener('mouseleave', () => {
-          this.el.setAttribute('scale', '1 1 1');
-          // Revert to original color (read from attribute)
-          const color = this.el.getAttribute('data-color') || '#00E5FF';
-          this.el.querySelector('.disc-mesh').setAttribute('material', 'emissive', color);
-        });
-      }
-    });
-
-    // --- 4. FLICKER EFFECT (For the Beam) ---
-    AFRAME.registerComponent('flicker', {
-      tick: function(t) {
-        // Randomly adjust opacity to simulate unstable light
-        const opacity = 0.3 + Math.random() * 0.2;
-        this.el.setAttribute('material', 'opacity', opacity);
-      }
-    });
-
-    // --- 5. UI CONTROLLER ---
-    AFRAME.registerComponent('ui-logic', {
-      init: function() {
-        const btn = document.getElementById('start-btn');
-        btn.addEventListener('click', () => {
-          document.getElementById('overlay').style.display = 'none';
         });
       }
     });
@@ -200,8 +139,6 @@
 
   <div id="overlay">
     <h1>SYSTEM ACCESS</h1>
-    <p>INITIALIZING AR PROTOCOLS...</p>
-    <div class="loader"></div>
     <button id="start-btn">ENTER GRID</button>
   </div>
 
@@ -209,20 +146,18 @@
     ui-logic
     mindar-image="imageTargetSrc: ./targets.mind;" 
     color-space="sRGB" 
-    renderer="colorManagement: true, physicallyCorrectLights: true, bloom: true" 
+    renderer="colorManagement: true, physicallyCorrectLights: true" 
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
 
     <a-assets>
-      <a-asset-item id="font-orbitron" src="https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/orbitron/Orbitron-Bold.json"></a-asset-item>
-
       <a-mixin id="disc-mesh" 
                geometry="primitive: cylinder; height: 0.05; radius: 0.15; segmentsRadial: 32"
                material="color: #FFFFFF; metalness: 0.9; roughness: 0.2; emissiveIntensity: 2.0">
       </a-mixin>
-
       <a-mixin id="disc-text"
-               text="font: #font-orbitron; shader: msdf; align: center; color: #FFFFFF; width: 1.5; negate: false">
+               text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/orbitron/Orbitron-Bold.json; 
+                     shader: msdf; align: center; color: #FFFFFF; width: 1.5; negate: false">
       </a-mixin>
     </a-assets>
 
@@ -233,46 +168,40 @@
     <a-entity mindar-image-target="targetIndex: 0">
       
       <a-plane 
-        glitch-reveal
-        material="shader: grid-portal; color: #00E5FF" 
-        width="1" height="0.6" 
-        position="0 0 0">
+        shader-clock
+        material="shader: spillover-tunnel; color: #00E5FF; transparent: true; opacity: 1.0" 
+        width="30" height="30" 
+        position="0 0 -0.01"> 
       </a-plane>
 
       <a-cone 
-        flicker
-        glitch-reveal
         position="0 0.5 0" 
         radius-bottom="0.4" radius-top="0.6" height="1.5"
         material="color: #0078FF; opacity: 0.3; transparent: true; side: double; depthWrite: false"
         open-ended="true">
       </a-cone>
 
-      <a-entity position="0 0 0.3" rotation="-20 0 0"> <a-entity position="-0.35 0 0" class="clickable" data-disc data-url="https://linkedin.com" data-color="#00E5FF"
-                  animation="property: position; to: -0.35 0.05 0; dir: alternate; loop: true; dur: 2000; easing: easeInOutSine">
-          
+      <a-entity position="0 0 0.3" rotation="-20 0 0">
+        <a-entity position="-0.35 0 0" class="clickable" data-disc data-url="https://linkedin.com">
           <a-entity class="disc-mesh" mixin="disc-mesh" material="emissive: #00E5FF"></a-entity>
           <a-ring radius-inner="0.16" radius-outer="0.17" material="color: #00E5FF; shader: flat" position="0 0 0.03"></a-ring>
           <a-text value="RESUME" mixin="disc-text" position="0 0 0.04"></a-text>
         </a-entity>
 
-        <a-entity position="0 0 0" class="clickable" data-disc data-url="https://github.com" data-color="#00E5FF"
-                  animation="property: position; to: 0 0.05 0; dir: alternate; loop: true; dur: 2200; easing: easeInOutSine">
-          
+        <a-entity position="0 0 0" class="clickable" data-disc data-url="https://github.com">
           <a-entity class="disc-mesh" mixin="disc-mesh" material="emissive: #00E5FF"></a-entity>
           <a-ring radius-inner="0.16" radius-outer="0.17" material="color: #00E5FF; shader: flat" position="0 0 0.03"></a-ring>
           <a-text value="PROJECTS" mixin="disc-text" position="0 0 0.04"></a-text>
         </a-entity>
 
-        <a-entity position="0.35 0 0" class="clickable" data-disc data-url="mailto:you@email.com" data-color="#FF9100"
-                  animation="property: position; to: 0.35 0.05 0; dir: alternate; loop: true; dur: 2400; easing: easeInOutSine">
-          
+        <a-entity position="0.35 0 0" class="clickable" data-disc data-url="mailto:you@email.com">
           <a-entity class="disc-mesh" mixin="disc-mesh" material="emissive: #FF9100"></a-entity>
           <a-ring radius-inner="0.16" radius-outer="0.17" material="color: #FF9100; shader: flat" position="0 0 0.03"></a-ring>
           <a-text value="CONTACT" mixin="disc-text" position="0 0 0.04"></a-text>
         </a-entity>
+      </a-entity>
 
-      </a-entity> <a-entity position="0 0 0.01">
+      <a-entity position="0 0 0.02">
          <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
          <a-plane position="0 -0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
          <a-plane position="-0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
