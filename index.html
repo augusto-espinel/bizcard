@@ -52,7 +52,7 @@
           float thickness = 0.05 * r; 
           float lineH = step(1.0 - thickness, gridH);
           float lineV = step(0.98, gridV); 
-          float gridVal = max(lineH, lineV);
+          float gridVal = max(lineH, lineV) * 0.8;
           float inWindowX = step(abs(vPos.x), 0.5); float inWindowY = step(abs(vPos.y), 0.3);
           float inWindow = inWindowX * inWindowY;
           vec3 gridColor = color * gridVal; vec3 voidColor = vec3(0.0, 0.02, 0.05);
@@ -120,7 +120,7 @@
         if (!camComponent || !camComponent.camera) return;
         const threeCamera = camComponent.camera;
 
-        let closestDist = 0.3; // 30% of screen distance (The Threshold)
+        let closestDist = 0.4; // 40% of screen distance (The Threshold)
         let foundTarget = null;
 
         this.targets.forEach((target) => {
