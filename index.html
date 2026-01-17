@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TRON AR - Illusion Descent</title>
+  <title>TRON AR - Final Animation</title>
   
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -32,46 +32,27 @@
   <script>
     // --- 1. SHADER (Thinned Lines) ---
     AFRAME.registerShader('spillover-tunnel', {
-      schema: {
-        color: {type: 'color', is: 'uniform', default: '#00E5FF'},
-        time: {type: 'float', is: 'uniform', default: 0.0}
-      },
-      vertexShader: `
-        varying vec3 vPos;
-        void main() {
-          vPos = position; 
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
+      schema: { color: {type: 'color', is: 'uniform', default: '#00E5FF'}, time: {type: 'float', is: 'uniform', default: 0.0} },
+      vertexShader: `varying vec3 vPos; void main() { vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: `
-        uniform vec3 color;
-        uniform float time;
-        varying vec3 vPos;
+        uniform vec3 color; uniform float time; varying vec3 vPos;
         void main() {
           float r = max(abs(vPos.x), abs(vPos.y)); 
           float a = atan(vPos.y, vPos.x);
           float z = 1.0 / r + (time * 0.5); 
-          
-          float gridH = fract(z * 4.0);
-          float gridV = fract(a * 4.0 / 3.14159);
+          float gridH = fract(z * 4.0); float gridV = fract(a * 4.0 / 3.14159);
           
           float thickness = 0.05 * r; 
           float lineH = step(1.0 - thickness, gridH);
-          
-          // THIN LINES: Threshold increased to 0.98
-          float lineV = step(0.98, gridV);
+          float lineV = step(0.98, gridV); // Thin lines
           
           float gridVal = max(lineH, lineV);
-          
-          float inWindowX = step(abs(vPos.x), 0.5);
-          float inWindowY = step(abs(vPos.y), 0.3);
+          float inWindowX = step(abs(vPos.x), 0.5); float inWindowY = step(abs(vPos.y), 0.3);
           float inWindow = inWindowX * inWindowY;
 
-          vec3 gridColor = color * gridVal;
-          vec3 voidColor = vec3(0.0, 0.02, 0.05);
+          vec3 gridColor = color * gridVal; vec3 voidColor = vec3(0.0, 0.02, 0.05);
           vec3 finalRGB = gridColor + (voidColor * inWindow);
           float finalAlpha = max(gridVal, inWindow);
-
           gl_FragColor = vec4(finalRGB, finalAlpha);
         }
       `
@@ -81,24 +62,28 @@
     AFRAME.registerComponent('shader-clock', {
       tick: function (time, timeDelta) {
         const mesh = this.el.getObject3D('mesh');
-        if(mesh && mesh.material.uniforms) {
-          mesh.material.uniforms.time.value = time / 1000; 
-        }
+        if(mesh && mesh.material.uniforms) mesh.material.uniforms.time.value = time / 1000; 
       }
     });
 
-    // --- 3. UI LOGIC (Updated to Trigger Descent) ---
+    // --- 3. UI LOGIC (Triggers Animation) ---
     AFRAME.registerComponent('ui-logic', {
       init: function() {
-        document.getElementById('start-btn').addEventListener('click', () => {
+        const btn = document.getElementById('start-btn');
+        btn.addEventListener('click', () => {
           document.getElementById('overlay').style.display = 'none';
           
-          // Trigger the Illusion Animation
-          // We wait a tiny bit (100ms) to ensure smooth transition
+          // Wait 500ms then start the drop
           setTimeout(() => {
-            const illusion = document.getElementById('illusion-obj');
-            if(illusion) illusion.emit('start-descend');
-          }, 100);
+            const obj = document.getElementById('illusion-obj');
+            // We enable the animation attribute manually to force start
+            obj.setAttribute('animation', {
+              property: 'position',
+              to: '0 0 0.02',    // End Position (2cm above card)
+              dur: 4000,         // Duration (4 seconds)
+              easing: 'easeOutCubic' // Starts fast, ends slow
+            });
+          }, 500);
         });
       }
     });
@@ -117,6 +102,51 @@
         this.el.addEventListener('mouseleave', () => {
           this.el.setAttribute('scale', '1 1 1');
           this.el.querySelector('.text-core').setAttribute('color', '#FFFFFF');
+        });
+      }
+    });
+
+    // --- COMPONENT: DARK RED SOLID + BRIGHT RED WIREFRAME ---
+    AFRAME.registerComponent('style-red-wireframe', {
+      init: function() {
+        this.el.addEventListener('model-loaded', () => {
+          const object = this.el.getObject3D('mesh');
+          if (!object) return;
+
+          const meshes = [];
+          
+          // 1. Find all mesh parts in the model
+          object.traverse((node) => {
+            if (node.isMesh) {
+              meshes.push(node);
+            }
+          });
+
+          // 2. Apply Styles
+          meshes.forEach((node) => {
+            // A. The Solid Base (Dark Red)
+            // We replace the existing material with a dark, metallic red
+            node.material = new THREE.MeshStandardMaterial({
+              color: 0x330000,  // Dark Blood Red
+              metalness: 0.6,
+              roughness: 0.4,
+            });
+
+            // B. The Wireframe Overlay (Bright Red)
+            // Create a clone of the geometry
+            const wireMesh = new THREE.Mesh(
+              node.geometry,
+              new THREE.MeshBasicMaterial({
+                color: 0xFF0000, // Neon Red
+                wireframe: true,
+                transparent: true,
+                opacity: 0.8
+              })
+            );
+            
+            // Add the wireframe as a child of the solid object
+            node.add(wireMesh);
+          });
         });
       }
     });
@@ -142,7 +172,6 @@
                text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/orbitron/Orbitron-Bold.json; 
                      shader: msdf; align: center; width: 2.5; negate: true">
       </a-mixin>
-      
       <a-asset-item id="illusion-model" src="./illusion.glb"></a-asset-item>
     </a-assets>
 
@@ -152,12 +181,8 @@
 
     <a-entity mindar-image-target="targetIndex: 0">
       
-      <a-plane 
-        shader-clock
-        material="shader: spillover-tunnel; color: #00E5FF; transparent: true; opacity: 1.0" 
-        width="30" height="30" 
-        position="0 0 -0.02"> 
-      </a-plane>
+      <a-plane shader-clock material="shader: spillover-tunnel; color: #00E5FF; transparent: true; opacity: 1.0" 
+        width="30" height="30" position="0 0 -0.02"></a-plane>
 
       <a-entity position="0 0 0.01">
          <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
@@ -166,11 +191,12 @@
          <a-plane position="0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
       </a-entity>
 
-      <a-entity id="illusion-obj"
+<a-entity 
+        id="illusion-obj"
         gltf-model="#illusion-model"
-        position="0 0 4"
-        scale="0.1 0.1 0.1" 
-        animation="property: position; to: 0 0 0.02; dur: 3000; easing: easeOutCubic; startEvents: start-descend">
+        style-red-wireframe 
+        position="0 0 4" 
+        scale="0.02 0.02 0.02"> 
       </a-entity>
 
       <a-entity position="0 0.45 0.05" class="clickable" clickable-text data-url="https://linkedin.com">
