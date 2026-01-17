@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TRON AR - Tilt Interaction</title>
+  <title>TRON AR - Final Fixed Interaction</title>
   
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -27,17 +27,10 @@
       padding: 15px 40px; border: 2px solid #00E5FF; cursor: pointer; margin-top: 30px;
       box-shadow: 0 0 4px #00E5FF, inset 0 0 4px #00E5FF;
     }
-    
-    /* Crosshair for aiming */
-    #crosshair {
-      position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
-      border: 2px solid rgba(255, 255, 255, 0.5); border-radius: 50%;
-      transform: translate(-50%, -50%); pointer-events: none; z-index: 5000;
-    }
   </style>
 
   <script>
-    // --- 1. SHADER ---
+    // --- 1. SHADER (Blue Tunnel) ---
     AFRAME.registerShader('spillover-tunnel', {
       schema: { color: {type: 'color', is: 'uniform', default: '#00E5FF'}, time: {type: 'float', is: 'uniform', default: 0.0} },
       vertexShader: `varying vec3 vPos; void main() { vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
@@ -97,32 +90,36 @@
       }
     });
 
-    // --- 3. INTERACTIVE LOGIC (FIXED) ---
+    // --- 3. INTERACTION COMPONENT ---
     AFRAME.registerComponent('interactive-text', {
       init: function() {
-        // A. Handle Click (Tap)
-        this.el.addEventListener('click', () => {
-          const url = this.el.getAttribute('data-url');
-          console.log("Clicked:", url); // Debug
-          if(url) window.open(url, '_blank');
-        });
-        
-        // B. Handle Tilt/Aim (MouseEnter)
+        // A. HOVER (Gaze/Tilt)
         this.el.addEventListener('mouseenter', () => {
           // Scale Up
           this.el.setAttribute('scale', '1.8 1.8 1.8');
-          // Change Core Color to RED
+          // Turn RED
           const core = this.el.querySelector('.text-core');
-          if(core) core.setAttribute('color', '#FF0000'); // Pure Red
+          if(core) core.setAttribute('color', '#FF0000'); 
+          // Haptic feedback (if supported)
+          if(window.navigator.vibrate) window.navigator.vibrate(20);
         });
         
-        // C. Handle Tilt Away (MouseLeave)
+        // B. LEAVE (Gaze Away)
         this.el.addEventListener('mouseleave', () => {
           // Scale Down
           this.el.setAttribute('scale', '1.5 1.5 1.5');
-          // Change Core Color back to White
+          // Turn WHITE
           const core = this.el.querySelector('.text-core');
           if(core) core.setAttribute('color', '#FFFFFF');
+        });
+        
+        // C. CLICK (Tap Screen while aiming)
+        this.el.addEventListener('click', () => {
+          const url = this.el.getAttribute('data-url');
+          if(url) {
+            console.log("Opening:", url);
+            window.open(url, '_blank');
+          }
         });
       }
     });
@@ -134,8 +131,6 @@
     <h1>SYSTEM ACCESS</h1>
     <button id="start-btn">ENTER GRID</button>
   </div>
-  
-  <div id="crosshair"></div>
 
   <a-scene 
     ui-logic
@@ -153,21 +148,25 @@
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false">
-      <a-entity cursor="fuse: false; rayOrigin: mouse;" 
-                raycaster="objects: .clickable; far: 100; interval: 100">
+      <a-entity 
+        cursor="fuse: false" 
+        raycaster="objects: .clickable; far: 100; interval: 50"
+        position="0 0 -1"
+        geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.015"
+        material="color: #00E5FF; shader: flat; opacity: 0.8">
       </a-entity>
     </a-camera>
 
     <a-entity mindar-image-target="targetIndex: 0">
       
-      <a-plane shader-clock material="shader: spillover-tunnel; color: #AA0000; transparent: true; opacity: 1.0" 
+      <a-plane shader-clock material="shader: spillover-tunnel; color: #00E5FF; transparent: true; opacity: 1.0" 
         width="30" height="30" position="0 0 -0.02"></a-plane>
 
       <a-entity position="0 0 0.01">
-         <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #AA0000"></a-plane>
-         <a-plane position="0 -0.31 0" width="1.04" height="0.02" material="shader: flat; color: #AA0000"></a-plane>
-         <a-plane position="-0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #AA0000"></a-plane>
-         <a-plane position="0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #AA0000"></a-plane>
+         <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
+         <a-plane position="0 -0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
+         <a-plane position="-0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
+         <a-plane position="0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
       </a-entity>
 
       <a-entity 
@@ -179,29 +178,29 @@
       </a-entity>
 
       <a-entity position="0 0.8 0.2" rotation="45 0 0" scale="1.5 1.5 1.5" 
-                class="clickable" interactive-text data-url="https://example.com/profile">
-        <a-plane material="color: white; opacity: 0.0; transparent: true; depthWrite: false" width="1.0" height="0.4"></a-plane>
+                class="clickable" interactive-text data-url="https://linkedin.com">
+        <a-plane material="color: white; opacity: 0.0; transparent: true; depthWrite: false" width="1.2" height="0.5"></a-plane>
         <a-text value="PROFILE" mixin="label-font" color="#AA0000" opacity="0.8" position="0 0.02 -0.005"></a-text>
         <a-text class="text-core" value="PROFILE" mixin="label-font" color="#FFFFFF"></a-text>
       </a-entity>
 
       <a-entity position="0 -0.8 0.2" rotation="-45 0 0" scale="1.5 1.5 1.5" 
-                class="clickable" interactive-text data-url="https://example.com/projects">
-        <a-plane material="color: white; opacity: 0.0; transparent: true; depthWrite: false" width="1.0" height="0.4"></a-plane>
+                class="clickable" interactive-text data-url="https://github.com">
+        <a-plane material="color: white; opacity: 0.0; transparent: true; depthWrite: false" width="1.2" height="0.5"></a-plane>
         <a-text value="PROJECTS" mixin="label-font" color="#AA0000" opacity="0.8" position="0 -0.02 -0.005"></a-text>
         <a-text class="text-core" value="PROJECTS" mixin="label-font" color="#FFFFFF"></a-text>
       </a-entity>
 
       <a-entity position="-0.9 0 0.2" rotation="0 45 0" scale="1.5 1.5 1.5" 
                 class="clickable" interactive-text data-url="mailto:test@example.com">
-        <a-plane material="color: white; opacity: 0.0; transparent: true; depthWrite: false" width="1.0" height="0.4"></a-plane>
+        <a-plane material="color: white; opacity: 0.0; transparent: true; depthWrite: false" width="1.2" height="0.5"></a-plane>
         <a-text value="EMAIL" mixin="label-font" align="center" color="#AA0000" opacity="0.8" position="-0.02 0 -0.005"></a-text>
         <a-text class="text-core" value="EMAIL" mixin="label-font" align="center" color="#FFFFFF"></a-text>
       </a-entity>
 
       <a-entity position="0.9 0 0.2" rotation="0 -45 0" scale="1.5 1.5 1.5" 
                 class="clickable" interactive-text data-url="tel:+123456789">
-        <a-plane material="color: white; opacity: 0.0; transparent: true; depthWrite: false" width="1.0" height="0.4"></a-plane>
+        <a-plane material="color: white; opacity: 0.0; transparent: true; depthWrite: false" width="1.2" height="0.5"></a-plane>
         <a-text value="CALL" mixin="label-font" align="center" color="#AA0000" opacity="0.8" position="0.02 0 -0.005"></a-text>
         <a-text class="text-core" value="CALL" mixin="label-font" align="center" color="#FFFFFF"></a-text>
       </a-entity>
