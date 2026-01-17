@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TRON AR - Proximity Interaction</title>
+  <title>TRON AR - Screen Center Interaction</title>
   
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -28,16 +28,17 @@
       box-shadow: 0 0 4px #00E5FF, inset 0 0 4px #00E5FF;
     }
     
-    /* Center Crosshair */
+    /* Crosshair */
     #crosshair {
-      position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
-      border: 2px solid rgba(0, 229, 255, 0.5); border-radius: 50%;
+      position: absolute; top: 50%; left: 50%; width: 30px; height: 30px;
+      border: 2px solid rgba(0, 229, 255, 0.8); border-radius: 50%;
       transform: translate(-50%, -50%); pointer-events: none; z-index: 5000;
+      box-shadow: 0 0 10px #00E5FF;
     }
   </style>
 
   <script>
-    // --- 1. SHADER (Restored to BLUE #00E5FF) ---
+    // --- 1. SHADER (Blue) ---
     AFRAME.registerShader('spillover-tunnel', {
       schema: { color: {type: 'color', is: 'uniform', default: '#00E5FF'}, time: {type: 'float', is: 'uniform', default: 0.0} },
       vertexShader: `varying vec3 vPos; void main() { vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
@@ -96,80 +97,73 @@
       }
     });
 
-    // --- 2. NEW PROXIMITY SYSTEM ---
-    // This replaces Raycasters. It uses Vector Math to see what is "in front" of the camera.
-    AFRAME.registerComponent('proximity-selector', {
+    // --- 2. SCREEN CENTER SELECTOR (Bulletproof) ---
+    AFRAME.registerComponent('screen-center-selector', {
       init: function() {
         this.camera = document.querySelector('a-camera');
         this.targets = Array.from(document.querySelectorAll('.selectable'));
         this.activeTarget = null;
-        
-        // GLOBAL CLICK LISTENER
+        this.vector = new THREE.Vector3(); // Reusable vector to save memory
+
+        // GLOBAL CLICK
         window.addEventListener('click', () => {
           if (this.activeTarget) {
             const url = this.activeTarget.getAttribute('data-url');
-            if(url) {
-              console.log("Opening URL:", url);
-              window.open(url, '_blank');
-            }
+            if(url) window.open(url, '_blank');
           }
         });
       },
-      
+
       tick: function() {
-        if (!this.camera) return;
-        
-        // 1. Get Camera Direction
-        const camObject = this.camera.getObject3D('camera');
-        if (!camObject) return;
-        
-        const camPos = new THREE.Vector3();
-        const camDir = new THREE.Vector3();
-        camObject.getWorldPosition(camPos);
-        camObject.getWorldDirection(camDir);
-        camDir.negate(); // A-Frame cameras look down negative Z, so we flip it to get "Forward"
+        // Safety check: Camera must be loaded
+        const camComponent = this.camera.components.camera;
+        if (!camComponent || !camComponent.camera) return;
+        const threeCamera = camComponent.camera;
 
-        let closestTarget = null;
-        let maxDot = 0.96; // Threshold: 0.96 is roughly 15 degrees cone
+        let closestDist = 0.15; // 15% of screen distance (The Threshold)
+        let foundTarget = null;
 
-        // 2. Check every text label
-        this.targets.forEach(target => {
-          const targetObj = target.object3D;
-          const targetPos = new THREE.Vector3();
-          targetObj.getWorldPosition(targetPos);
+        this.targets.forEach((target) => {
+          // 1. Get World Position of text
+          target.object3D.getWorldPosition(this.vector);
           
-          // Calculate vector from Camera to Text
-          const dirToTarget = targetPos.sub(camPos).normalize();
-          
-          // Dot Product: 1.0 = Exact center, 0.0 = 90 degrees away
-          const dot = camDir.dot(dirToTarget);
-          
-          if (dot > maxDot) {
-            maxDot = dot;
-            closestTarget = target;
+          // 2. Project to Screen Space
+          // .project converts 3D world coords to -1 to +1 (Normalized Device Coords)
+          this.vector.project(threeCamera);
+
+          // 3. Check if it's in front of camera (z < 1) and close to center (x=0, y=0)
+          if (this.vector.z < 1) {
+            // Distance from center (0,0)
+            const dist = Math.sqrt(this.vector.x * this.vector.x + this.vector.y * this.vector.y);
+            
+            // If closer than previous best match
+            if (dist < closestDist) {
+              closestDist = dist;
+              foundTarget = target;
+            }
           }
         });
 
-        // 3. Update Visuals
-        if (closestTarget !== this.activeTarget) {
-          // Deactivate old target
+        // 4. Update Highlight State
+        if (foundTarget !== this.activeTarget) {
+          
+          // Reset Old
           if (this.activeTarget) {
             this.activeTarget.setAttribute('scale', '1.5 1.5 1.5');
             const core = this.activeTarget.querySelector('.text-core');
-            if(core) core.setAttribute('color', '#FFFFFF');
+            if (core) core.setAttribute('color', '#FFFFFF');
           }
-          
-          // Activate new target
-          if (closestTarget) {
-            closestTarget.setAttribute('scale', '1.8 1.8 1.8');
-            const core = closestTarget.querySelector('.text-core');
-            if(core) core.setAttribute('color', '#FF0000');
-            
-            // Optional: Phone Vibrate
+
+          // Highlight New
+          if (foundTarget) {
+            foundTarget.setAttribute('scale', '1.8 1.8 1.8');
+            const core = foundTarget.querySelector('.text-core');
+            if (core) core.setAttribute('color', '#FF0000');
+            // Vibrate
             if(window.navigator.vibrate) window.navigator.vibrate(20);
           }
-          
-          this.activeTarget = closestTarget;
+
+          this.activeTarget = foundTarget;
         }
       }
     });
@@ -185,7 +179,7 @@
   <div id="crosshair"></div>
 
   <a-scene 
-    proximity-selector
+    screen-center-selector
     ui-logic
     mindar-image="imageTargetSrc: ./targets.mind;" 
     color-space="sRGB" 
