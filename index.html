@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TRON AR - Text Interface</title>
+  <title>TRON AR - Final Fixed Glow</title>
   
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -47,7 +47,6 @@
         uniform vec3 color;
         uniform float time;
         varying vec3 vPos;
-        
         void main() {
           float r = max(abs(vPos.x), abs(vPos.y)); 
           float a = atan(vPos.y, vPos.x);
@@ -67,7 +66,6 @@
 
           vec3 gridColor = color * gridVal;
           vec3 voidColor = vec3(0.0, 0.02, 0.05);
-          
           vec3 finalRGB = gridColor + (voidColor * inWindow);
           float finalAlpha = max(gridVal, inWindow);
 
@@ -94,25 +92,22 @@
       }
     });
 
-    // Hover & Click Logic for Text
+    // HOVER LOGIC
     AFRAME.registerComponent('clickable-text', {
       init: function() {
-        // Click
         this.el.addEventListener('click', () => {
           const url = this.el.getAttribute('data-url');
           if(url) window.open(url, '_blank');
         });
         
-        // Hover: Scale up & change color to Yellow
         this.el.addEventListener('mouseenter', () => {
           this.el.setAttribute('scale', '1.2 1.2 1.2');
-          this.el.querySelector('a-text').setAttribute('color', '#FFFB00');
+          this.el.querySelector('.text-core').setAttribute('color', '#FFFB00');
         });
         
-        // Leave: Scale back & reset color
         this.el.addEventListener('mouseleave', () => {
           this.el.setAttribute('scale', '1 1 1');
-          this.el.querySelector('a-text').setAttribute('color', '#FFFFFF');
+          this.el.querySelector('.text-core').setAttribute('color', '#FFFFFF');
         });
       }
     });
@@ -134,9 +129,9 @@
     device-orientation-permission-ui="enabled: false">
 
     <a-assets>
-      <a-mixin id="label-text"
+      <a-mixin id="label-font"
                text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/orbitron/Orbitron-Bold.json; 
-                     shader: msdf; align: center; color: #FFFFFF; width: 2.5; negate: false">
+                     shader: msdf; align: center; width: 2.5; negate: true">
       </a-mixin>
     </a-assets>
 
@@ -161,23 +156,27 @@
       </a-entity>
 
       <a-entity position="0 0.45 0.05" class="clickable" clickable-text data-url="https://linkedin.com">
-        <a-plane opacity="0" width="0.5" height="0.2"></a-plane>
-        <a-text value="PROFILE" mixin="label-text"></a-text>
+        <a-plane material="opacity: 0.0; transparent: true; depthWrite: false" width="0.5" height="0.2"></a-plane>
+        <a-text value="PROFILE" mixin="label-font" color="#00E5FF" opacity="0.5" position="0 0.03 -0.005" scale="1.1 1.1 1"></a-text>
+        <a-text class="text-core" value="PROFILE" mixin="label-font" color="#FFFFFF"></a-text>
       </a-entity>
 
       <a-entity position="0 -0.45 0.05" class="clickable" clickable-text data-url="https://github.com">
-        <a-plane opacity="0" width="0.5" height="0.2"></a-plane>
-        <a-text value="PROJECTS" mixin="label-text"></a-text>
+        <a-plane material="opacity: 0.0; transparent: true; depthWrite: false" width="0.5" height="0.2"></a-plane>
+        <a-text value="PROJECTS" mixin="label-font" color="#00E5FF" opacity="0.5" position="0 -0.03 -0.005" scale="1.1 1.1 1"></a-text>
+        <a-text class="text-core" value="PROJECTS" mixin="label-font" color="#FFFFFF"></a-text>
       </a-entity>
 
       <a-entity position="-0.7 0 0.05" class="clickable" clickable-text data-url="mailto:you@email.com">
-        <a-plane opacity="0" width="0.4" height="0.2"></a-plane>
-        <a-text value="EMAIL" mixin="label-text" align="right"></a-text>
+        <a-plane material="opacity: 0.0; transparent: true; depthWrite: false" width="0.4" height="0.2"></a-plane>
+        <a-text value="EMAIL" mixin="label-font" align="right" color="#00E5FF" opacity="0.5" position="-0.03 0 -0.005" scale="1.1 1.1 1"></a-text>
+        <a-text class="text-core" value="EMAIL" mixin="label-font" align="right" color="#FFFFFF"></a-text>
       </a-entity>
 
       <a-entity position="0.7 0 0.05" class="clickable" clickable-text data-url="tel:+123456789">
-        <a-plane opacity="0" width="0.4" height="0.2"></a-plane>
-        <a-text value="CALL" mixin="label-text" align="left"></a-text>
+        <a-plane material="opacity: 0.0; transparent: true; depthWrite: false" width="0.4" height="0.2"></a-plane>
+        <a-text value="CALL" mixin="label-font" align="left" color="#00E5FF" opacity="0.5" position="0.03 0 -0.005" scale="1.1 1.1 1"></a-text>
+        <a-text class="text-core" value="CALL" mixin="label-font" align="left" color="#FFFFFF"></a-text>
       </a-entity>
 
     </a-entity>
