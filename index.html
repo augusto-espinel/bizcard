@@ -2,708 +2,282 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR Neural Portal</title>
+  <title>TRON AR Portal</title>
+  
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-  
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
   <style>
-    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    /* TRON UI THEME */
+    body { margin: 0; overflow: hidden; background: #000; font-family: 'Share Tech Mono', monospace; }
+
+    /* 1. The Overlay (Scanning UI) */
     #overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
+      background: rgba(0, 5, 10, 0.95); /* The Void */
+      display: flex; flex-direction: column;
       justify-content: center; align-items: center; z-index: 9999;
-      color: white; text-align: center;
+      color: #00E5FF; /* Circuit Cyan */
     }
-    button {
-      background: #0088ff; color: white; border: none; padding: 15px 30px;
-      font-size: 1.2rem; border-radius: 5px; margin-top: 20px; cursor: pointer;
+
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 2rem;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      margin-bottom: 10px;
+      /* The Glow Formula (Text) */
+      text-shadow: 0 0 5px #FFFFFF, 0 0 10px #00E5FF, 0 0 20px #0078FF;
     }
+
+    p { font-size: 1rem; color: #0078FF; letter-spacing: 1px; }
+
+    /* 2. The Button (Start) */
+    #start-btn {
+      background: transparent;
+      color: #FFFFFF;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.2rem;
+      padding: 15px 40px;
+      border: 2px solid #00E5FF;
+      cursor: pointer;
+      margin-top: 30px;
+      position: relative;
+      overflow: hidden;
+      transition: 0.3s;
+      /* The Glow Formula (Box) */
+      box-shadow: 0 0 4px #00E5FF, inset 0 0 4px #00E5FF;
+    }
+
+    #start-btn:hover {
+      background: rgba(0, 229, 255, 0.2);
+      box-shadow: 0 0 15px #00E5FF, inset 0 0 15px #00E5FF;
+    }
+
+    /* 3. Progress Bar (Tron Style) */
+    .loader {
+      width: 200px; height: 4px;
+      background: #00050A;
+      margin-top: 20px;
+      border: 1px solid #0078FF;
+      position: relative;
+    }
+    .loader::after {
+      content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 0%;
+      background: #00E5FF;
+      animation: load 2s ease-in-out infinite;
+      box-shadow: 0 0 10px #00E5FF;
+    }
+    @keyframes load { 0% {width: 0%;} 50% {width: 100%;} 100% {width: 0%; left: 100%;} }
+
   </style>
 
   <script>
-    // --- DEPTH FADE COMPONENT ---
-    // Gradually fade wall opacity based on z-depth to simulate well depth
-    AFRAME.registerComponent('depth-fade', {
-      init: function() {
-        this.el.addEventListener('loaded', () => this.updateMaterial());
-        this.updateMaterial();
-      },
-      tick: function(time, deltaTime) {
-        const mesh = this.el.getObject3D('mesh');
-        if (!mesh || !mesh.material) return;
-        
-        const worldPos = new THREE.Vector3();
-        this.el.object3D.getWorldPosition(worldPos);
-        
-        // Z position ranges from 0 (fractal) to -2 (far wall)
-        // Map to opacity: 0 → 0.9 (more opaque), -2 → 0.2 (more transparent)
-        const depthAlpha = 0.9 + (worldPos.z / -2.0) * (0.2 - 0.9);
-        mesh.material.opacity = Math.max(0.2, Math.min(0.9, depthAlpha));
-      },
-      updateMaterial: function() {
-        const mesh = this.el.getObject3D('mesh');
-        if (mesh && mesh.material) {
-          mesh.material.transparent = true;
-          // Set renderOrder to 2 so walls render AFTER mask writes stencil (mask is renderOrder 1)
-          this.el.object3D.renderOrder = 2;
-        }
-      }
-    });
-
-    // --- LINK HANDLER (Restored) ---
-    AFRAME.registerComponent('link-handler', {
-      init: function () {
-        this.el.addEventListener('click', (e) => {
-          const url = this.el.getAttribute('data-url');
-          if (url) window.open(url, '_blank');
-        });
-        this.el.addEventListener('mouseenter', () => {
-           this.el.setAttribute('scale', '1.05 1.05 1.05');
-           const bg = this.el.querySelector('.bg-box');
-           if(bg) bg.setAttribute('material', 'color', '#00ffff');
-        });
-        this.el.addEventListener('mouseleave', () => {
-           this.el.setAttribute('scale', '1 1 1');
-           const bg = this.el.querySelector('.bg-box');
-           if(bg) bg.setAttribute('material', 'color', '#C0C0C0'); 
-        });
-      }
-    });
-
-    // --- 2. GYRO & DISTANCE SENSOR (Combined Interaction) ---
-    AFRAME.registerComponent('interaction-sync', {
-      init: function() {
-        this.startBtn = document.getElementById('start-btn');
-        this.camera = document.querySelector('a-camera');
-        
-        // Gyro Variables
-        this.panoX = 0;
-        this.panoY = 0;
-        // Utility: clamp values to avoid pole singularities
-        this.clamp = function(v, a, b) { return Math.max(a, Math.min(b, v)); };
-        
-        // Setup Gyro Listener
-        if(this.startBtn) {
-            this.startBtn.addEventListener('click', () => { 
-                this.requestAccess(); 
-            });
-        }
-        window.addEventListener('deviceorientation', (e) => this.handleOrientation(e));
-      },
-      requestAccess: function() {
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission()
-            .then(response => {
-              if (response === 'granted') document.getElementById('overlay').style.display = 'none';
-              else alert('Permission denied.');
-            })
-            .catch(console.error);
-        } else {
-          document.getElementById('overlay').style.display = 'none';
-        }
-      },
-      handleOrientation: function(e) {
-         if (typeof e.beta === 'undefined' || typeof e.gamma === 'undefined') return;
-         // Map and clamp beta/gamma to avoid pole singularities near vertical
-         const targetX = this.clamp(e.gamma || 0, -45, 45); // left/right in degrees
-         const targetY = this.clamp(e.beta  || 0, 10, 170);  // avoid angles near 0 or 180
-         
-         // Damping/smoothing
-         this.panoX += (targetX - this.panoX) * 0.1;
-         this.panoY += (targetY - this.panoY) * 0.1;
-      },
-      tick: function(t, dt) {
-        const mesh = this.el.getObject3D('mesh');
-        if (!mesh || !mesh.material) {
-          if (window.log) window.log('interaction-sync: mesh or material missing');
-          console.log('interaction-sync: mesh or material missing', this.el);
-          return;
-        }
-        if (!mesh.material.uniforms) {
-          if (!this._warnedMissingUniforms) {
-            if (window.log) window.log('interaction-sync: shader uniforms not yet available');
-            console.log('interaction-sync: shader uniforms not yet available', mesh.material);
-            this._warnedMissingUniforms = true;
-          }
-          return;
-        }
-        this._warnedMissingUniforms = false;
-
-        // 1. UPDATE TIME
-        mesh.material.uniforms.uTime.value = t / 1000;
-
-        // 2. UPDATE GYRO TILT
-        // Normalize range approx -45 to 45 degrees to -1.0 to 1.0 and clamp to avoid poles
-        mesh.material.uniforms.uPan.value = this.clamp(this.panoX / 45.0, -1.0, 1.0);
-        mesh.material.uniforms.uTilt.value = this.clamp((this.panoY - 45) / 45.0, -0.9, 0.9); // keep a margin from full -1/1 to avoid instability
-
-        // 3. UPDATE DISTANCE (PROXIMITY)
-        // Calculate distance between Camera and this Target
-        const targetPos = new THREE.Vector3();
-        const camPos = new THREE.Vector3();
-        this.el.object3D.getWorldPosition(targetPos);
-        this.camera.object3D.getWorldPosition(camPos);
-        
-        const dist = targetPos.distanceTo(camPos);
-        // Pass distance to shader (Clamped to reasonable AR distances 0.0 to 2.0 meters)
-        mesh.material.uniforms.uDist.value = dist;
-
-        // Optional: push short status into on-screen debugger if present
-        if (window.updateDebugUniforms && mesh.material.uniforms) {
-          window.updateDebugUniforms({uPan: mesh.material.uniforms.uPan.value, uTilt: mesh.material.uniforms.uTilt.value, uDist: mesh.material.uniforms.uDist.value});
-        }
-      }
-    });
-
-    // --- 3. PARALLAX NEURAL SHADER ---
-    AFRAME.registerShader('neural-parallax', {
+    // --- 1. THE GRID SHADER (Procedural - No Image Needed) ---
+    // Generates an infinite scrolling neon grid based on view angle
+    AFRAME.registerShader('grid-portal', {
       schema: {
-        uTime: {type: 'float', is: 'uniform', default: 0.0},
-        uPan: {type: 'float', is: 'uniform', default: 0.0},
-        uTilt: {type: 'float', is: 'uniform', default: 0.0},
-        uDist: {type: 'float', is: 'uniform', default: 1.0},
-        uColor: {type: 'vec3', is: 'uniform', default: {x: 0.0, y: 0.7, z: 1.0}} 
+        color: {type: 'color', is: 'uniform', default: '#00E5FF'},
+        time: {type: 'time', is: 'uniform'}
       },
       vertexShader: `
-        varying vec2 vUv;
+        varying vec3 vPos;
         void main() {
-          vUv = uv;
+          vPos = position;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
-        uniform float uTime;
-        uniform float uPan;
-        uniform float uTilt;
-        uniform float uDist;
-        uniform vec3 uColor;
-        varying vec2 vUv;
-
-        // --- RANDOM FUNCTIONS ---
-        vec2 hash2(vec2 p) {
-            p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
-            return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
-        }
-
-        // --- VORONOI LOGIC ---
-        // Returns x=NodeDist, y=EdgeDist
-        vec2 voronoi(in vec2 x, float timeOffset) {
-            vec2 n = floor(x);
-            vec2 f = fract(x);
-            float d_node = 8.0;
-            float d_edge = 8.0;
-            vec2 mg, mr;
-
-            // First pass: Find closest point (Node)
-            for(int j=-1; j<=1; j++) {
-                for(int i=-1; i<=1; i++) {
-                    vec2 g = vec2(float(i), float(j));
-                    vec2 o = hash2(n + g);
-                    o = 0.5 + 0.5 * sin(timeOffset + 6.2831 * o);
-                    vec2 r = g + o - f;
-                    float d = dot(r,r);
-                    if(d < d_node) { d_node = d; mr = r; mg = g; }
-                }
-            }
-            d_node = sqrt(d_node);
-
-            // Second pass: Find closest edge (Line)
-            for(int j=-1; j<=1; j++) {
-                for(int i=-1; i<=1; i++) {
-                    vec2 g = vec2(float(i), float(j));
-                    vec2 o = hash2(n + g);
-                    o = 0.5 + 0.5 * sin(timeOffset + 6.2831 * o);
-                    vec2 r = g + o - f;
-                    if(dot(mr-r, mr-r) > 0.00001) {
-                        d_edge = min(d_edge, dot(0.5*(mr+r), normalize(r-mr)));
-                    }
-                }
-            }
-            return vec2(d_node, d_edge);
-        }
-
+        uniform vec3 color;
+        uniform float time;
+        varying vec3 vPos;
+        
         void main() {
-          // 1. Setup Coordinates
-          vec2 uv = vUv - 0.5;
+          // Create a perspective grid effect
+          // We use the pixel position to simulate depth
+          float scale = 10.0;
+          float t = time * 0.0005; // Scroll speed
           
-          // 2. Proximity Calculation
-          // If uDist is small (<0.5), brightness is high. If large (>1.5), it fades.
-          float visibility = 1.0 - smoothstep(0.4, 1.2, uDist);
-          visibility = clamp(visibility, 0.2, 1.0); // Never completely invisible, minimal 20%
-
-          vec3 finalColor = vec3(0.0);
-          float t = -uTime * 0.2;
-
-          // 3. Parallax Offset Vector based on Gyro
-          // If we tilt right (uPan > 0), background should move left.
-          vec2 parallaxDir = vec2(uPan, -uTilt) * 0.2; 
-
-          // 4. Render 3 Depth Layers
-          for(float i = 0.0; i < 3.0; i++) {
-              
-              // Determine Depth of this layer (0 = Front, 3 = Deep)
-              float depth = i + 1.0; 
-              
-              // PARALLAX: Offset UVs based on depth
-              // Deeper layers move less than closer layers, or vice-versa depending on desired effect.
-              // Here: We simulate "Window" - Deeper layers shift MORE relative to window frame
-              vec2 pUv = uv + (parallaxDir * depth * 0.5);
-
-              // FRACTAL LOOP
-              float slide = fract(t + i * 0.33); 
-              float fade = smoothstep(0.0, 0.3, slide) * smoothstep(1.0, 0.7, slide);
-              
-              // Scale changes based on distance too!
-              // Closer you are with camera, the more "detail" you see
-              float zoomMod = 1.0 + (1.0 - visibility) * 0.5; 
-              float scale = pow(3.0, slide * 2.5) * 4.0 * zoomMod;
-
-              vec2 localUv = pUv * scale;
-              
-              // Get Pattern
-              vec2 v = voronoi(localUv + i * 12.5, uTime + i);
-              float d_node = v.x;
-              float d_edge = v.y;
-
-              // Draw
-              float lineThickness = 0.03 * (visibility + 0.5); // Thicker lines when close
-              float lines = 1.0 - smoothstep(lineThickness, lineThickness + 0.02, d_edge);
-              float nodes = 0.05 / (d_node + 0.01);
-
-              vec3 col = uColor * (lines + nodes) * fade;
-              
-              // Accumulate
-              finalColor += col;
-          }
-
-          // 5. No vignette - let fractal extend to edges
-          // Apply Proximity Brightness
-          finalColor *= (visibility * 1.5);
-
-          gl_FragColor = vec4(finalColor, 1.0);
+          // Math to draw lines
+          float x = abs(sin(vPos.x * scale));
+          float y = abs(sin((vPos.y + t) * scale)); // Moving Y
+          
+          // Thickness of lines
+          float thickness = 0.05;
+          float glow = 0.0;
+          
+          if(x < thickness) glow += 1.0 - (x / thickness);
+          if(y < thickness) glow += 1.0 - (y / thickness);
+          
+          // Fade out towards the edges (vignette) to simulate "Void"
+          float dist = distance(vPos.xy, vec2(0.0));
+          float mask = 1.0 - smoothstep(0.3, 0.7, dist);
+          
+          vec3 finalColor = color * glow * mask;
+          
+          // Mix with the "Void" background color (#00050A)
+          gl_FragColor = vec4(finalColor + vec3(0.0, 0.02, 0.04), 1.0);
         }
       `
     });
 
-    // --- 4. STL LOADER (Restored Full) ---
-    AFRAME.registerComponent('stl-loader', {
-      schema: { src: {type: 'string', default: ''}, scale: {type: 'number', default: 1.0}, color: {type: 'string', default: '#808080'} },
+    // --- 2. GLITCH REVEAL (Animation) ---
+    // Scales the portal up from 0 with a bounce when found
+    AFRAME.registerComponent('glitch-reveal', {
       init: function() {
-        const self = this;
-        fetch(this.data.src)
-          .then(response => response.arrayBuffer())
-          .then(arrayBuffer => {
-            const geometry = self.parseSTL(arrayBuffer);
-            geometry.center();
-            geometry.scale(self.data.scale, self.data.scale, self.data.scale);
-            const material = new THREE.MeshPhongMaterial({ color: self.data.color, shininess: 100 });
-            const mesh = new THREE.Mesh(geometry, material);
-            if (self.el.object3D.children.length > 0) self.el.object3D.remove(self.el.object3D.children[0]);
-            self.el.object3D.add(mesh);
-          }).catch(console.error);
-      },
-      parseSTL: function(arrayBuffer) {
-        const view = new DataView(arrayBuffer);
-        const isASCII = new TextDecoder().decode(new Uint8Array(arrayBuffer).slice(0, 5)) === 'solid';
-        return isASCII ? this.parseASCIISTL(new TextDecoder().decode(arrayBuffer)) : this.parseBinarySTL(view);
-      },
-      parseBinarySTL: function(view) {
-        const faces = view.getUint32(80, true);
-        const geometry = new THREE.BufferGeometry();
-        const vertices = [], normals = [];
-        let offset = 84;
-        for (let i = 0; i < faces; i++) {
-          const nx = view.getFloat32(offset, true); offset += 4;
-          const ny = view.getFloat32(offset, true); offset += 4;
-          const nz = view.getFloat32(offset, true); offset += 4;
-          for (let j = 0; j < 3; j++) {
-            vertices.push(view.getFloat32(offset, true)); offset += 4;
-            vertices.push(view.getFloat32(offset, true)); offset += 4;
-            vertices.push(view.getFloat32(offset, true)); offset += 4;
-            normals.push(nx, ny, nz);
-          }
-          offset += 2;
-        }
-        geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
-        geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
-        return geometry;
-      },
-      parseASCIISTL: function(str) {
-        const geometry = new THREE.BufferGeometry();
-        const vertices = [], normals = [];
-        const vertexPattern = /vertex\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/g;
-        const normalPattern = /facet\s+normal\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/g;
-        let normal = [0, 0, 0], normalMatch;
-        while ((normalMatch = normalPattern.exec(str))) {
-          normal = [parseFloat(normalMatch[1]), parseFloat(normalMatch[3]), parseFloat(normalMatch[5])];
-          let count = 0, vertexMatch;
-          while ((vertexMatch = vertexPattern.exec(str)) && count < 3) {
-            vertices.push(parseFloat(vertexMatch[1]), parseFloat(vertexMatch[3]), parseFloat(vertexMatch[5]));
-            normals.push(...normal);
-            count++;
-          }
-        }
-        geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
-        geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
-        return geometry;
-      }
-    });
-    // STENCIL SETUP COMPONENT (adapted from debug2.html)
-    AFRAME.registerComponent('stencil-setup', {
-      init: function() {
-        this.el.addEventListener('loaded', () => { this.updateConfig(); });
-        // Force update immediately in case it's already loaded
-        this.updateConfig();
-      },
-      updateConfig: function() {
-        const mesh = this.el.getObject3D('mesh');
-        if (!mesh) {
-          // Retry a few times if mesh isn't present yet
-          this._tries = (this._tries || 0) + 1;
-          const msg = `stencil-setup: no mesh yet for ${this.el.id || this.el.tagName} (try ${this._tries})`;
-          console.log(msg);
-          if (window.log) window.log(msg);
-          if (this._tries < 6) setTimeout(() => this.updateConfig(), 250);
-          return;
-        }
+        this.el.setAttribute('visible', false);
+        const target = document.querySelector('[mindar-image-target]');
+        
+        target.addEventListener('targetFound', () => {
+          this.el.setAttribute('visible', true);
+          // Animate Scale
+          this.el.setAttribute('animation', {
+            property: 'scale',
+            from: '0 0.001 1', /* Start as a thin line */
+            to: '1 1 1',
+            dur: 800,
+            easing: 'easeOutElastic'
+          });
+          // Play a "Rez-up" sound if you added audio
+        });
 
-        const isMask = this.el.getAttribute('id') === 'mask-plane';
-
-        if (isMask) {
-          console.log("Configuring MASK", this.el);
-          if (window.log) window.log('Configuring MASK');
-          this.el.object3D.renderOrder = 1; 
-
-          mesh.material.colorWrite = false; // Invisible
-          mesh.material.depthWrite = false; 
-          mesh.material.stencilWrite = true;
-          mesh.material.stencilRef = 1;
-          mesh.material.stencilFunc = THREE.AlwaysStencilFunc;
-          mesh.material.stencilZPass = THREE.ReplaceStencilOp; 
-
-          // Log material properties for debugging
-          const props = {
-            colorWrite: mesh.material.colorWrite,
-            depthWrite: mesh.material.depthWrite,
-            stencilWrite: mesh.material.stencilWrite,
-            stencilRef: mesh.material.stencilRef,
-            stencilFunc: mesh.material.stencilFunc,
-            stencilZPass: mesh.material.stencilZPass,
-            renderOrder: this.el.object3D.renderOrder
-          };
-          console.log('MASK material props', props);
-          if (window.log) window.log('MASK material props: ' + JSON.stringify(props));
-
-          // Debug helper: if data-debug-mask="true" is present, make the mask visible for alignment
-          if (this.el.getAttribute('data-debug-mask') === 'true') {
-            mesh.material.colorWrite = true;
-            mesh.material.opacity = 0.25;
-            mesh.material.color = new THREE.Color(0xff00ff);
-            console.log('MASK visible for debug (data-debug-mask=true)');
-            if (window.log) window.log('MASK visible for debug');
-          }
-        } else {
-          console.log("Configuring CONTENT", this.el);
-          if (window.log) window.log('Configuring CONTENT');
-          this.el.object3D.renderOrder = 2; 
-
-          // keep side default for planes; content gets stencil equality
-          mesh.material.stencilWrite = true;
-          mesh.material.stencilRef = 1;
-          mesh.material.stencilFunc = THREE.EqualStencilFunc; 
-
-          const props = { stencilWrite: mesh.material.stencilWrite, stencilRef: mesh.material.stencilRef, stencilFunc: mesh.material.stencilFunc, renderOrder: this.el.object3D.renderOrder };
-          console.log('CONTENT material props', props);
-          if (window.log) window.log('CONTENT material props: ' + JSON.stringify(props));
-        }
-      }
-    });
-
-    // Component to set stencil equal without changing side
-    AFRAME.registerComponent('stencil-equal', {
-      init: function() {
-        this.el.addEventListener('loaded', () => this.updateConfig());
-        this.updateConfig();
-      },
-      updateConfig: function() {
-        const mesh = this.el.getObject3D('mesh');
-        if (!mesh || !mesh.material) return;
-        mesh.material.stencilWrite = false;
-        mesh.material.stencilRef = 0;       // Render where stencil == 0 (OUTSIDE mask)
-        mesh.material.stencilFunc = THREE.EqualStencilFunc;
-        mesh.material.side = THREE.DoubleSide;
-        mesh.material.transparent = true;
-
-        console.log('stencil-equal applied', this.el, {
-          stencilWrite: mesh.material.stencilWrite,
-          stencilRef: mesh.material.stencilRef,
-          stencilFunc: mesh.material.stencilFunc,
-          side: mesh.material.side,
-          transparent: mesh.material.transparent
+        target.addEventListener('targetLost', () => {
+           this.el.setAttribute('visible', false);
+           this.el.setAttribute('scale', '0 0 0');
         });
       }
     });
 
-    // Portal wall shader: fades with view depth so walls blend into fractal
-    AFRAME.registerShader('portal-wall', {
-      schema: {
-        uColor: {type: 'vec3', is: 'uniform', default: {x: 0.1, y: 0.15, z: 0.25}},
-        uNear: {type: 'float', is: 'uniform', default: 0.1},
-        uFar: {type: 'float', is: 'uniform', default: 3.0},
-        uPower: {type: 'float', is: 'uniform', default: 1.5}
-      },
-      vertexShader: `
-        varying float vDepth;
-        void main() {
-          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-          vDepth = -mvPos.z;
-          gl_Position = projectionMatrix * mvPos;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 uColor;
-        uniform float uNear;
-        uniform float uFar;
-        uniform float uPower;
-        varying float vDepth;
-        void main() {
-          float t = clamp((vDepth - uNear) / (uFar - uNear), 0.0, 1.0);
-          float alpha = pow(1.0 - t, uPower);
-          gl_FragColor = vec4(uColor, alpha);
-        }
-      `
+    // --- 3. DATA DISC BEHAVIOR (Hover & Click) ---
+    AFRAME.registerComponent('data-disc', {
+      init: function() {
+        this.el.addEventListener('click', () => {
+          const url = this.el.getAttribute('data-url');
+          if(url) window.open(url, '_blank');
+        });
+        
+        // Hover State: Pulse Color
+        this.el.addEventListener('mouseenter', () => {
+          this.el.setAttribute('scale', '1.2 1.2 1.2');
+          // Switch to CLU Yellow on hover
+          this.el.querySelector('.disc-mesh').setAttribute('material', 'emissive', '#FFFB00');
+        });
+        
+        this.el.addEventListener('mouseleave', () => {
+          this.el.setAttribute('scale', '1 1 1');
+          // Revert to original color (read from attribute)
+          const color = this.el.getAttribute('data-color') || '#00E5FF';
+          this.el.querySelector('.disc-mesh').setAttribute('material', 'emissive', color);
+        });
+      }
     });
-    AFRAME.registerComponent('segmented-tunnel', {
-  schema: {
-    count: {type: 'int', default: 10}, // How many slices?
-    totalDepth: {type: 'number', default: 1.0}, // How deep is the tunnel?
-    color: {type: 'color', default: '#4a6fa5'}
-  },
-  init: function () {
-    let zPos = 0;
-    
-    for (let i = 0; i < this.data.count; i++) {
-      // Random length for this specific segment (between 0.02 and 0.1)
-      let segDepth = 0.02 + Math.random() * 0.08;
-      
-      // Add a small gap between boxes so they look separate
-      let gap = 0.02; 
-      
-      // Calculate center Z for this segment
-      let currentCenterZ = zPos - (segDepth / 2);
 
-      // Create the 4 walls for this slice
-      this.createWall(0.53, 0, currentCenterZ, 0.02, 0.65, segDepth); // Right
-      this.createWall(-0.53, 0, currentCenterZ, 0.02, 0.65, segDepth); // Left
-      this.createWall(0, 0.32, currentCenterZ, 1.06, 0.02, segDepth); // Top
-      this.createWall(0, -0.32, currentCenterZ, 1.06, 0.02, segDepth); // Bottom
-      
-      // Move Z cursor for next loop
-      zPos -= (segDepth + gap);
-    }
-  },
-
-  createWall: function (x, y, z, w, h, d) {
-    let el = document.createElement('a-box');
-    el.setAttribute('position', {x: x, y: y, z: z});
-    el.setAttribute('width', w);
-    el.setAttribute('height', h);
-    el.setAttribute('depth', d);
-    el.setAttribute('material', {
-      color: this.data.color, 
-      transparent: true, 
-      opacity: 0.9
+    // --- 4. FLICKER EFFECT (For the Beam) ---
+    AFRAME.registerComponent('flicker', {
+      tick: function(t) {
+        // Randomly adjust opacity to simulate unstable light
+        const opacity = 0.3 + Math.random() * 0.2;
+        this.el.setAttribute('material', 'opacity', opacity);
+      }
     });
-    
-    // Add your portal logic components
-    el.setAttribute('stencil-equal', '');
-    el.setAttribute('depth-fade', '');
-    
-    this.el.appendChild(el);
-  }
-});
+
+    // --- 5. UI CONTROLLER ---
+    AFRAME.registerComponent('ui-logic', {
+      init: function() {
+        const btn = document.getElementById('start-btn');
+        btn.addEventListener('click', () => {
+          document.getElementById('overlay').style.display = 'none';
+        });
+      }
+    });
   </script>
 </head>
 <body>
 
   <div id="overlay">
-    <h2>AR Neural Portal</h2>
-    <p>Tap to start - Move phone close to reveal</p>
-    <button id="start-btn">Initialize</button>
+    <h1>SYSTEM ACCESS</h1>
+    <p>INITIALIZING AR PROTOCOLS...</p>
+    <div class="loader"></div>
+    <button id="start-btn">ENTER GRID</button>
   </div>
 
   <a-scene 
+    ui-logic
     mindar-image="imageTargetSrc: ./targets.mind;" 
     color-space="sRGB" 
-    renderer="colorManagement: true, physicallyCorrectLights: true"
+    renderer="colorManagement: true, physicallyCorrectLights: true, bloom: true" 
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
 
     <a-assets>
-      <a-mixin id="btn-bg" geometry="primitive: box; width: 0.3; height: 0.12; depth: 0.04" material="shader: standard; color: #ffffff; metalness: 0.4; roughness: 0.6;"></a-mixin>
-      <a-mixin id="btn-text" text="align: center; color: #000; width: 2; negate: true; font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/montserrat/Montserrat-Bold.json; shader: msdf;"></a-mixin>
+      <a-asset-item id="font-orbitron" src="https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/orbitron/Orbitron-Bold.json"></a-asset-item>
+
+      <a-mixin id="disc-mesh" 
+               geometry="primitive: cylinder; height: 0.05; radius: 0.15; segmentsRadial: 32"
+               material="color: #FFFFFF; metalness: 0.9; roughness: 0.2; emissiveIntensity: 2.0">
+      </a-mixin>
+
+      <a-mixin id="disc-text"
+               text="font: #font-orbitron; shader: msdf; align: center; color: #FFFFFF; width: 1.5; negate: false">
+      </a-mixin>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false">
-      <a-entity cursor="fuse: false; rayOrigin: mouse;" raycaster="objects: .clickable" position="0 0 -1"></a-entity>
+      <a-entity cursor="fuse: false; rayOrigin: mouse;" raycaster="objects: .clickable"></a-entity>
     </a-camera>
 
     <a-entity mindar-image-target="targetIndex: 0">
       
-      <!-- Mask for portal: writes stencil where the window appears -->
-      <a-plane id="mask-plane" stencil-setup position="0 0 -0.1" width="1.05" height="0.605" material="opacity:1; transparent:true"></a-plane>
-
-      <!-- Main portal fractal -->
       <a-plane 
-        interaction-sync
-        material="shader: neural-parallax; uColor: 0.1 0.8 1.0; transparent: true"
-        position="0 0 0" 
-        width="1.05" height="0.605">
+        glitch-reveal
+        material="shader: grid-portal; color: #00E5FF" 
+        width="1" height="0.6" 
+        position="0 0 0">
       </a-plane>
 
-      <!-- Portal walls: only render inside stencil (inside card portal) -->
-      <!-- <a-entity id="portal-walls"> -->
-        <!-- Left wall -->
-        <!-- <a-box position="-0.53 0 -0.23" width="0.02" height="0.65" depth="0.5" material="color: #4a6fa5; transparent: true; opacity: 0.8" stencil-equal depth-fade></a-box> -->
-        <!-- Right wall -->
-        <!-- <a-box position="0.53 0 -0.23" width="0.02" height="0.65" depth="0.5" material="color: #4a6fa5; transparent: true; opacity: 0.8" stencil-equal depth-fade></a-box> -->
-        <!-- Top wall -->
-        <!-- <a-box position="0 0.32 -0.23" width="1.06" height="0.02" depth="0.5" material="color: #4a6fa5; transparent: true; opacity: 0.8" stencil-equal depth-fade></a-box> -->
-        <!-- Bottom wall -->
-        <!-- <a-box position="0 -0.32 -0.23" width="1.06" height="0.02" depth="0.5" material="color: #4a6fa5; transparent: true; opacity: 0.8" stencil-equal depth-fade></a-box> -->
-      <!-- </a-entity> -->
+      <a-cone 
+        flicker
+        glitch-reveal
+        position="0 0.5 0" 
+        radius-bottom="0.4" radius-top="0.6" height="1.5"
+        material="color: #0078FF; opacity: 0.3; transparent: true; side: double; depthWrite: false"
+        open-ended="true">
+      </a-cone>
 
-      <a-entity position="0 0 0.1" segmented-tunnel="count: 6; totalDepth: 0.5"></a-entity>
-
-      <a-entity position="0 -0.4 0">
-        <a-entity position="0 0 0" class="clickable" link-handler data-url="https://yourwebsite.com/cv"
-                  geometry="primitive: plane; width: 0.45; height: 0.12" material="opacity: 0.0; transparent: true">
-          <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.45"></a-entity>
-          <a-text value="Resume" mixin="btn-text" position="0 -0.055 0.05"></a-text>
-        </a-entity>
-        
-        <a-entity position="0 -0.15 0" class="clickable" link-handler data-url="https://yourwebsite.com/projects"
-                  geometry="primitive: plane; width: 0.5; height: 0.12" material="opacity: 0.0; transparent: true">
-          <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.5"></a-entity>
-          <a-text value="Projects" mixin="btn-text" position="0 -0.055 0.05"></a-text>
+      <a-entity position="0 0 0.3" rotation="-20 0 0"> <a-entity position="-0.35 0 0" class="clickable" data-disc data-url="https://linkedin.com" data-color="#00E5FF"
+                  animation="property: position; to: -0.35 0.05 0; dir: alternate; loop: true; dur: 2000; easing: easeInOutSine">
+          
+          <a-entity class="disc-mesh" mixin="disc-mesh" material="emissive: #00E5FF"></a-entity>
+          <a-ring radius-inner="0.16" radius-outer="0.17" material="color: #00E5FF; shader: flat" position="0 0 0.03"></a-ring>
+          <a-text value="RESUME" mixin="disc-text" position="0 0 0.04"></a-text>
         </a-entity>
 
-        <a-entity position="0 -0.3 0" class="clickable" link-handler data-url="https://youtube.com"
-                  geometry="primitive: plane; width: 0.8; height: 0.12" material="opacity: 0.0; transparent: true">
-          <a-entity class="bg-box" mixin="btn-bg" geometry="width: 0.8"></a-entity>
-          <a-text value="Drone Videos" mixin="btn-text" position="0 -0.055 0.05"></a-text>
+        <a-entity position="0 0 0" class="clickable" data-disc data-url="https://github.com" data-color="#00E5FF"
+                  animation="property: position; to: 0 0.05 0; dir: alternate; loop: true; dur: 2200; easing: easeInOutSine">
+          
+          <a-entity class="disc-mesh" mixin="disc-mesh" material="emissive: #00E5FF"></a-entity>
+          <a-ring radius-inner="0.16" radius-outer="0.17" material="color: #00E5FF; shader: flat" position="0 0 0.03"></a-ring>
+          <a-text value="PROJECTS" mixin="disc-text" position="0 0 0.04"></a-text>
         </a-entity>
+
+        <a-entity position="0.35 0 0" class="clickable" data-disc data-url="mailto:you@email.com" data-color="#FF9100"
+                  animation="property: position; to: 0.35 0.05 0; dir: alternate; loop: true; dur: 2400; easing: easeInOutSine">
+          
+          <a-entity class="disc-mesh" mixin="disc-mesh" material="emissive: #FF9100"></a-entity>
+          <a-ring radius-inner="0.16" radius-outer="0.17" material="color: #FF9100; shader: flat" position="0 0 0.03"></a-ring>
+          <a-text value="CONTACT" mixin="disc-text" position="0 0 0.04"></a-text>
+        </a-entity>
+
+      </a-entity> <a-entity position="0 0 0.01">
+         <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
+         <a-plane position="0 -0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
+         <a-plane position="-0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
+         <a-plane position="0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
       </a-entity>
-
-      <a-entity position="0 0 0.01">
-         <a-plane position="0 0.31 0" width="1.04" height="0.02" color="#222"></a-plane>
-         <a-plane position="0 -0.31 0" width="1.04" height="0.02" color="#222"></a-plane>
-         <a-plane position="-0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
-         <a-plane position="0.51 0 0" width="0.02" height="0.64" color="#222"></a-plane>
-      </a-entity>
-
-      <script>
-        // On-screen debug console and helpers
-        (function(){
-          function qs(name) { return (new URL(location.href)).searchParams.get(name); }
-          const debugMode = qs('debug') === '1' || localStorage.getItem('AR_DEBUG') === '1';
-
-          // create a compact on-screen debug panel
-          const el = document.createElement('div');
-          el.id = 'ar-debug-ui';
-          el.style.position = 'absolute';
-          el.style.left = '10px';
-          el.style.bottom = '10px';
-          el.style.width = 'calc(100% - 20px)';
-          el.style.maxHeight = '200px';
-          el.style.overflow = 'auto';
-          el.style.background = 'rgba(0,0,0,0.6)';
-          el.style.color = 'lime';
-          el.style.fontFamily = 'monospace';
-          el.style.padding = '8px';
-          el.style.zIndex = '10000';
-          el.style.fontSize = '12px';
-          el.innerHTML = '<div id="ar-debug-header">AR Debug Console (click to toggle)</div><div id="ar-debug-body"></div>';
-          document.body.appendChild(el);
-
-          window.log = function(msg){
-            const b = document.getElementById('ar-debug-body');
-            if(!b) return;
-            const d = document.createElement('div');
-            d.textContent = '> ' + msg;
-            b.appendChild(d);
-            b.scrollTop = b.scrollHeight;
-            console.log(msg);
-          };
-
-          // minimal status checks
-          window.log('AFRAME MindAR present? ' + !!(window.AFRAME && AFRAME.components && AFRAME.components['mindar-image']));
-          const target = document.querySelector('a-entity[mindar-image-target]');
-          if (target) {
-            target.addEventListener('targetFound', () => window.log('TARGET FOUND'));
-            target.addEventListener('targetLost', () => window.log('TARGET LOST'));
-          } else {
-            window.log('No mindar-image-target element found in DOM');
-          }
-
-          // auto-enable visible mask in debug mode
-          if (debugMode) {
-            window.log('Debug mode active: enabling visual mask');
-            const mask = document.getElementById('mask-plane');
-            if (mask) mask.setAttribute('data-debug-mask', 'true');
-
-            // Also force a visible fallback for the fractal plane so we can tell if stencil or shader is the problem
-            const plane = document.querySelector('a-plane[interaction-sync]');
-            if (plane) {
-              const tryShow = () => {
-                const mesh = plane.getObject3D('mesh');
-                if (!mesh || !mesh.material) {
-                  window.log('Debug fallback: plane material not ready yet, retrying');
-                  setTimeout(tryShow, 200);
-                  return;
-                }
-                try {
-                  mesh.material.colorWrite = true;
-                  mesh.material.opacity = 0.85;
-                  // If it's a shader material, set a temporary uniform color to make it visible if needed
-                  if (mesh.material.uniforms && mesh.material.uniforms.uColor) {
-                    mesh.material.uniforms.uColor.value = {x:0.2, y:0.6, z:1.0};
-                  }
-                  window.log('Debug fallback: made fractal plane visible (no-stencil fallback)');
-                } catch (e) { console.error(e); }
-              };
-              tryShow();
-            }
-          }
-
-          // helper to show uniform state periodically
-          function showUniforms() {
-            const plane = document.querySelector('a-plane[interaction-sync]');
-            if (!plane) return;
-            const mesh = plane.getObject3D('mesh');
-            if (!mesh || !mesh.material) { window.log('interaction plane material not found'); return; }
-            const u = mesh.material.uniforms || {};
-            window.log('uniforms: ' + Object.keys(u).map(k => k + '=' + (u[k] && u[k].value !== undefined ? (Array.isArray(u[k].value)?'vec':'')+u[k].value : 'n/a')).join(' | '));
-          }
-          setTimeout(showUniforms, 2000);
-          setTimeout(showUniforms, 5000);
-
-          window.updateDebugUniforms = function(obj) {
-            const s = document.getElementById('ar-debug-uniforms');
-            if (!s) {
-              const node = document.createElement('div'); node.id = 'ar-debug-uniforms'; document.getElementById('ar-debug-body').appendChild(node);
-            }
-            document.getElementById('ar-debug-uniforms').textContent = JSON.stringify(obj);
-          };
-
-          // header toggle
-          const header = document.getElementById('ar-debug-header');
-          header.style.cursor = 'pointer';
-          header.addEventListener('click', ()=>{ el.style.display = (el.style.display==='none'?'block':'none'); });
-        })();
-      </script>
-
-      <a-entity position="0 0.65 0" stl-loader="src: ./illusion_perspective.stl; scale: 0.005; color: #FFA500"></a-entity>
 
     </a-entity>
   </a-scene>
