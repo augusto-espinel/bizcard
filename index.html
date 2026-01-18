@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TRON AR - Deep Cyberpunk</title>
+  <title>Augusto Espinel - AR Business Card</title>
   
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -40,9 +40,61 @@
       transform: translate(-50%, -50%); pointer-events: none; z-index: 5000;
       box-shadow: 0 0 5px #FFFFFF;
     }
+    /* NEW: BOTTOM LEFT CONTACT BUTTON */
+    #contact-btn {
+      position: absolute; 
+      bottom: 20px; 
+      left: 20px;
+      z-index: 8000; /* Above scene, below overlay */
+      
+      background: rgba(10, 0, 0, 0.6); /* Semi-transparent dark red */
+      color: #FFFFFF;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 14px;
+      padding: 12px 20px;
+      border: 1px solid #FF0000;
+      border-radius: 4px;
+      cursor: pointer;
+      backdrop-filter: blur(2px);
+      box-shadow: 0 0 5px #550000;
+      
+      /* Hidden initially until start button is clicked (handled by UI logic) */
+      display: none; 
+    }
+    #contact-btn:active {
+      background: #FF0000;
+      color: #000;
+    }
   </style>
 
   <script>
+    // --- GLOBAL FUNCTION: DOWNLOAD CONTACT ---
+    // Accessible by both the AR text and the 2D button
+    window.triggerContactDownload = function() {
+      console.log("Generating Contact Card...");
+      
+      // EDIT YOUR DETAILS HERE
+      const vCardData = [
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        "FN:Augusto Espinel Porras",           // Full Name
+        "TEL;TYPE=CELL:++41796979516", // Phone Number
+        "EMAIL;TYPE=WORK:augusto.espinel@gmail.com", // Email
+        "URL:https://augusto-espinel.github.io",   // Website
+        "END:VCARD"
+      ].join("\n");
+
+      const blob = new Blob([vCardData], { type: "text/vcard" });
+      const url = URL.createObjectURL(blob);
+      
+      const newLink = document.createElement('a');
+      newLink.download = "contact.vcf";
+      newLink.textContent = "Download Contact";
+      newLink.href = url;
+      newLink.click();
+      
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
     // --- 1. SHADER: DEEP NAVY PULSE ---
     AFRAME.registerShader('spillover-tunnel', {
       schema: { 
@@ -148,15 +200,22 @@
       }
     });
 
+    // --- 3. UI LOGIC (Updated to show fallback button) ---
     AFRAME.registerComponent('ui-logic', {
       init: function() {
         document.getElementById('start-btn').addEventListener('click', () => {
           document.getElementById('overlay').style.display = 'none';
+          // Show the fallback button when AR starts
+          document.getElementById('contact-btn').style.display = 'block';
+        });
+        
+        // Connect the fallback button to the global function
+        document.getElementById('contact-btn').addEventListener('click', () => {
+          window.triggerContactDownload();
         });
       }
     });
-
-    // --- 3. INTERACTION: STEEL BLUE -> RED ---
+    // --- 4. INTERACTION: STEEL BLUE -> RED ---
     AFRAME.registerComponent('screen-center-selector', {
       init: function() {
         this.camera = document.querySelector('a-camera');
@@ -167,7 +226,11 @@
         window.addEventListener('click', () => {
           if (this.activeTarget) {
             const url = this.activeTarget.getAttribute('data-url');
-            if(url) window.open(url, '_blank');
+            if (url === '#save-contact') {
+              window.triggerContactDownload(); // Call global function
+            } else if(url) {
+              window.open(url, '_blank');
+            }
           }
         });
       },
@@ -237,6 +300,8 @@
     <h1>SYSTEM ACCESS</h1>
     <button id="start-btn">ENTER GRID</button>
   </div>
+
+  <button id="contact-btn">SAVE CONTACT</button>
   
   <div id="crosshair"></div>
 
@@ -279,27 +344,27 @@
       </a-entity>
 
       <a-entity position="0 0.8 0.2" rotation="30 0 0" scale="1.5 1.5 1.5" 
-                class="selectable" data-url="https://linkedin.com">
+                class="selectable" data-url="https://ch.linkedin.com/in/aespinel">
         <a-text class="text-glow" value="PROFILE" mixin="label-font" color="#B0C4DE" opacity="0.2" position="0 0.02 -0.005"></a-text>
         <a-text class="text-core" value="PROFILE" mixin="label-font" color="#B0C4DE"></a-text>
       </a-entity>
 
       <a-entity position="0 -0.8 0.2" rotation="-30 0 0" scale="1.5 1.5 1.5" 
-                class="selectable" data-url="https://github.com">
+                class="selectable" data-url="https://github.com/augusto-espinel">
         <a-text class="text-glow" value="PROJECTS" mixin="label-font" color="#B0C4DE" opacity="0.2" position="0 -0.02 -0.005"></a-text>
         <a-text class="text-core" value="PROJECTS" mixin="label-font" color="#B0C4DE"></a-text>
       </a-entity>
 
-      <a-entity position="-0.85 0 0.2" rotation="0 30 0" scale="1.5 1.5 1.5" 
-                class="selectable" data-url="mailto:test@example.com">
-        <a-text class="text-glow" value="EMAIL" mixin="label-font" align="center" color="#B0C4DE" opacity="0.2" position="-0.02 0 -0.005"></a-text>
-        <a-text class="text-core" value="EMAIL" mixin="label-font" align="center" color="#B0C4DE"></a-text>
+      <a-entity position="-1.2 0 0.3" rotation="0 30 0" scale="1.5 1.5 1.5" 
+                class="selectable" data-url="https://substack.com/@epsilen">
+        <a-text class="text-glow" value="SUBSTACK" mixin="label-font" align="center" color="#B0C4DE" opacity="0.2" position="-0.02 0 -0.005"></a-text>
+        <a-text class="text-core" value="SUBSTACK" mixin="label-font" align="center" color="#B0C4DE"></a-text>
       </a-entity>
 
-      <a-entity position="0.85 0 0.2" rotation="0 -30 0" scale="1.5 1.5 1.5" 
-                class="selectable" data-url="tel:+123456789">
-        <a-text class="text-glow" value="CALL" mixin="label-font" align="center" color="#B0C4DE" opacity="0.2" position="0.02 0 -0.005"></a-text>
-        <a-text class="text-core" value="CALL" mixin="label-font" align="center" color="#B0C4DE"></a-text>
+      <a-entity position="1.1 0 0.3" rotation="0 -30 0" scale="1.5 1.5 1.5" 
+                class="selectable" data-url="#save-contact">
+        <a-text class="text-glow" value="CONTACT" mixin="label-font" align="center" color="#B0C4DE" opacity="0.2" position="0.02 0 -0.005"></a-text>
+        <a-text class="text-core" value="CONTACT" mixin="label-font" align="center" color="#B0C4DE"></a-text>
       </a-entity>
 
     </a-entity>
