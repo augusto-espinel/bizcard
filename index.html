@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TRON AR - Screen Center Interaction</title>
+  <title>TRON AR - Clean Hex Pulse</title>
   
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -28,7 +28,6 @@
       box-shadow: 0 0 4px #00E5FF, inset 0 0 4px #00E5FF;
     }
     
-    /* Crosshair */
     #crosshair {
       position: absolute; top: 50%; left: 50%; width: 30px; height: 30px;
       border: 2px solid rgba(0, 229, 255, 0.8); border-radius: 50%;
@@ -38,26 +37,85 @@
   </style>
 
   <script>
-    // --- 1. SHADER (Blue) ---
+    // --- 1. SHADER: CLEAN HEX PULSE ---
     AFRAME.registerShader('spillover-tunnel', {
-      schema: { color: {type: 'color', is: 'uniform', default: '#00E5FF'}, time: {type: 'float', is: 'uniform', default: 0.0} },
+      schema: { 
+        color: {type: 'color', is: 'uniform', default: '#00E5FF'}, 
+        time: {type: 'float', is: 'uniform', default: 0.0} 
+      },
       vertexShader: `varying vec3 vPos; void main() { vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: `
-        uniform vec3 color; uniform float time; varying vec3 vPos;
+        uniform vec3 color; 
+        uniform float time; 
+        varying vec3 vPos;
+        
+        // Hexagon Distance Math
+        float hexDist(vec2 p) {
+            p = abs(p);
+            float c = dot(p, normalize(vec2(1.0, 1.73)));
+            c = max(c, p.x);
+            return c;
+        }
+
         void main() {
           float r = max(abs(vPos.x), abs(vPos.y)); 
           float a = atan(vPos.y, vPos.x);
-          float z = 1.0 / r + (time * 0.5); 
-          float gridH = fract(z * 4.0); float gridV = fract(a * 4.0 / 3.14159);
-          float thickness = 0.05 * r; 
-          float lineH = step(1.0 - thickness, gridH);
-          float lineV = step(0.98, gridV); 
-          float gridVal = max(lineH, lineV) * 0.8;
-          float inWindowX = step(abs(vPos.x), 0.5); float inWindowY = step(abs(vPos.y), 0.3);
+          
+          // Z = Depth. 
+          // Adding time creates the "Zoom In" effect (Movement).
+          float z = (1.0 / r) + (time * 0.5); 
+          
+          // UV Mapping
+          vec2 uv = vec2(a * 4.0, z); // Increase 4.0 for more horizontal tiles
+
+          // --- Hex Grid Logic ---
+          vec2 rVec = vec2(1.0, 1.73);
+          vec2 h = rVec * 0.5;
+          vec2 aMod = mod(uv, rVec) - h;
+          vec2 bMod = mod(uv - h, rVec) - h;
+          vec2 gv = dot(aMod, aMod) < dot(bMod, bMod) ? aMod : bMod;
+          float dist = hexDist(gv);
+          
+          // Define Lines
+          // 0.45 to 0.48 defines thickness.
+          float hexLine = smoothstep(0.47, 0.48, dist);
+
+          // --- Pulse Wave Logic ---
+          float pulseSpeed = time * 0.8;
+          float pulsePos = fract((z * 0.2) + pulseSpeed); 
+          
+          // Pulse intensity (0.0 to 1.0) based on depth
+          float pulse = smoothstep(0.4, 0.5, pulsePos) * smoothstep(0.6, 0.5, pulsePos);
+          
+          // --- Mixing Colors ---
+          
+          // 1. Base Line Color (Blue, 60% opacity)
+          vec3 baseLine = color * 0.6;
+          
+          // 2. Pulse Color (Pure White, Super Bright)
+          vec3 pulseColor = vec3(1.0, 1.0, 1.0) * 2.0;
+          
+          // 3. Combine: Base + (White * PulseStrength)
+          // CRITICAL: We multiply entire thing by hexLine. 
+          // If hexLine is 0 (empty space), the result is 0. No black glow.
+          vec3 finalLineRGB = (baseLine + (pulseColor * pulse)) * hexLine;
+
+          // --- Window Masking ---
+          float inWindowX = step(abs(vPos.x), 0.5); 
+          float inWindowY = step(abs(vPos.y), 0.3);
           float inWindow = inWindowX * inWindowY;
-          vec3 gridColor = color * gridVal; vec3 voidColor = vec3(0.0, 0.02, 0.05);
-          vec3 finalRGB = gridColor + (voidColor * inWindow);
-          float finalAlpha = max(gridVal, inWindow);
+
+          // Background inside window only
+          vec3 voidColor = vec3(0.0, 0.02, 0.05);
+          
+          // Final RGB Mix
+          vec3 finalRGB = finalLineRGB + (voidColor * inWindow);
+          
+          // --- Final Alpha ---
+          // Outside window: Alpha is strictly the line (0.0 or 1.0). No semi-transparent fog.
+          // Inside window: Alpha is 1.0 (Opaque).
+          float finalAlpha = max(hexLine, inWindow);
+          
           gl_FragColor = vec4(finalRGB, finalAlpha);
         }
       `
@@ -97,15 +155,14 @@
       }
     });
 
-    // --- 2. SCREEN CENTER SELECTOR (Bulletproof) ---
+    // SCREEN CENTER SELECTOR
     AFRAME.registerComponent('screen-center-selector', {
       init: function() {
         this.camera = document.querySelector('a-camera');
         this.targets = Array.from(document.querySelectorAll('.selectable'));
         this.activeTarget = null;
-        this.vector = new THREE.Vector3(); // Reusable vector to save memory
+        this.vector = new THREE.Vector3(); 
 
-        // GLOBAL CLICK
         window.addEventListener('click', () => {
           if (this.activeTarget) {
             const url = this.activeTarget.getAttribute('data-url');
@@ -113,30 +170,18 @@
           }
         });
       },
-
       tick: function() {
-        // Safety check: Camera must be loaded
         const camComponent = this.camera.components.camera;
         if (!camComponent || !camComponent.camera) return;
         const threeCamera = camComponent.camera;
-
-        let closestDist = 0.4; // 40% of screen distance (The Threshold)
+        let closestDist = 0.4; 
         let foundTarget = null;
 
         this.targets.forEach((target) => {
-          // 1. Get World Position of text
           target.object3D.getWorldPosition(this.vector);
-          
-          // 2. Project to Screen Space
-          // .project converts 3D world coords to -1 to +1 (Normalized Device Coords)
           this.vector.project(threeCamera);
-
-          // 3. Check if it's in front of camera (z < 1) and close to center (x=0, y=0)
           if (this.vector.z < 1) {
-            // Distance from center (0,0)
             const dist = Math.sqrt(this.vector.x * this.vector.x + this.vector.y * this.vector.y);
-            
-            // If closer than previous best match
             if (dist < closestDist) {
               closestDist = dist;
               foundTarget = target;
@@ -144,25 +189,18 @@
           }
         });
 
-        // 4. Update Highlight State
         if (foundTarget !== this.activeTarget) {
-          
-          // Reset Old
           if (this.activeTarget) {
             this.activeTarget.setAttribute('scale', '1.5 1.5 1.5');
             const core = this.activeTarget.querySelector('.text-core');
             if (core) core.setAttribute('color', '#FFFFFF');
           }
-
-          // Highlight New
           if (foundTarget) {
             foundTarget.setAttribute('scale', '1.8 1.8 1.8');
             const core = foundTarget.querySelector('.text-core');
             if (core) core.setAttribute('color', '#FF0000');
-            // Vibrate
             if(window.navigator.vibrate) window.navigator.vibrate(20);
           }
-
           this.activeTarget = foundTarget;
         }
       }
@@ -202,10 +240,10 @@
         width="30" height="30" position="0 0 -0.02"></a-plane>
 
       <a-entity position="0 0 0.01">
-         <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #0055AF"></a-plane>
-         <a-plane position="0 -0.31 0" width="1.04" height="0.02" material="shader: flat; color: #0055AF"></a-plane>
-         <a-plane position="-0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #0055AF"></a-plane>
-         <a-plane position="0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #0055AF"></a-plane>
+         <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
+         <a-plane position="0 -0.31 0" width="1.04" height="0.02" material="shader: flat; color: #00E5FF"></a-plane>
+         <a-plane position="-0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
+         <a-plane position="0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #00E5FF"></a-plane>
       </a-entity>
 
       <a-entity 
