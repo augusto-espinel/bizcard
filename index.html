@@ -66,7 +66,7 @@
           float z = (1.0 / r) + (time * 0.5); 
           
           // UV Mapping
-          vec2 uv = vec2(a * 4.0, z); // Increase 4.0 for more horizontal tiles
+          vec2 uv = vec2(a * 3.0, z); // Increase 4.0 for more horizontal tiles
 
           // --- Hex Grid Logic ---
           vec2 rVec = vec2(1.0, 1.73);
@@ -81,7 +81,7 @@
           float hexLine = smoothstep(0.47, 0.48, dist);
 
           // --- Pulse Wave Logic ---
-          float pulseSpeed = time * 0.8;
+          float pulseSpeed = time * 0.2;
           float pulsePos = fract((z * 0.2) + pulseSpeed); 
           
           // Pulse intensity (0.0 to 1.0) based on depth
