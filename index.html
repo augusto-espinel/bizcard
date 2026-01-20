@@ -100,58 +100,88 @@
       }
     });
 
-// --- DEBUG DRONE SWARM ---
+// --- FINAL GOLD MASTER: DRONE SWARM ---
     AFRAME.registerComponent('drone-swarm', {
       init: function() {
         this.drones = [];
-        this.timer = 0; // For debug logging
+        const scene = document.querySelector('a-scene').object3D;
         
+        // Add Light for Metallic Reflection
+        const light = new THREE.DirectionalLight(0xffffff, 2.0);
+        light.position.set(1, 1, 2);
+        scene.add(light);
+
         this.el.addEventListener('model-loaded', () => {
           const originalObj = this.el.getObject3D('mesh');
           if (!originalObj) return;
 
-          const scene = document.querySelector('a-scene').object3D;
           const pieces = [];
-
           originalObj.traverse((node) => {
             if (node.isMesh) pieces.push(node);
           });
           
-          console.log("Drone Swarm: Found " + pieces.length + " pieces."); 
+          console.log(`Swarm: Loaded ${pieces.length} drones at Z=20.`);
 
           pieces.forEach((original, index) => {
-            original.visible = false; // Hide original
+            original.visible = false; 
 
-            // DEBUG MATERIAL: Bright Green & Basic (Unlit)
-            // This ensures visibility even if lighting is broken
-            const droneMat = new THREE.MeshBasicMaterial({
-              color: 0x00FF00, // NEON GREEN
-              wireframe: true 
+            // 1. PREPARE GEOMETRY
+            const fixedGeo = original.geometry.clone();
+            fixedGeo.computeBoundingBox();
+            fixedGeo.center(); 
+            
+            // Normalize Size
+            const size = new THREE.Vector3();
+            fixedGeo.boundingBox.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
+            if (maxDim > 0) {
+                const scaleFactor = 1.0 / maxDim;
+                fixedGeo.scale(scaleFactor, scaleFactor, scaleFactor);
+            }
+
+            // 2. MATERIALS (Cyberpunk Style)
+            const bodyMat = new THREE.MeshStandardMaterial({
+              color: 0x550000, 
+              metalness: 0.9, 
+              roughness: 0.2,
+              side: THREE.DoubleSide
             });
+            const droneMesh = new THREE.Mesh(fixedGeo, bodyMat);
             
-            const droneMesh = new THREE.Mesh(original.geometry, droneMat);
+            const wireMat = new THREE.MeshBasicMaterial({
+              color: 0xFF0000, 
+              wireframe: true,
+              transparent: true,
+              opacity: 0.8
+            });
+            const wireMesh = new THREE.Mesh(fixedGeo, wireMat);
+            droneMesh.add(wireMesh);
 
-            // Capture initial World Transforms
-            const worldPos = new THREE.Vector3();
-            const worldQuat = new THREE.Quaternion();
-            const worldScale = new THREE.Vector3();
+            // 3. ATTACH TO CARD
+            this.el.object3D.add(droneMesh);
             
-            original.getWorldPosition(worldPos);
-            original.getWorldQuaternion(worldQuat);
-            original.getWorldScale(worldScale);
+            // 4. COPY ROTATION (Puzzle Piece Logic)
+            droneMesh.rotation.copy(original.rotation);
             
-            droneMesh.position.copy(worldPos);
-            droneMesh.quaternion.copy(worldQuat);
-            droneMesh.scale.copy(worldScale);
+            // 5. SCALE (50x)
+            const finalScale = 50.0;
+            droneMesh.scale.set(finalScale, finalScale, finalScale);
             
-            scene.add(droneMesh);
-
+            // 6. POSITIONING
+            const spread = 6.0; 
+            
             this.drones.push({
-              id: index,
               mesh: droneMesh,
-              target: original,
-              speed: 0.05 + Math.random() * 0.05,
-              offset: Math.random() * 100
+              basePos: new THREE.Vector3(
+                  (Math.random() - 0.5) * spread,    
+                  (Math.random() - 0.5) * spread,    
+                  
+                  // --- Z-OFFSET: 20.0 ---
+                  // 20.0 = Base height (approx 2cm visually)
+                  // + Math.random() * 5.0 = Add depth so they aren't a flat sheet
+                  20.0 + (Math.random() * 5.0)       
+              ),
+              noiseOffset: Math.random() * 100
             });
           });
         });
@@ -160,38 +190,13 @@
       tick: function(time, timeDelta) {
         if (this.drones.length === 0) return;
 
-        const targetPos = new THREE.Vector3();
-        const targetQuat = new THREE.Quaternion();
-        const targetScale = new THREE.Vector3();
-
-        this.drones.forEach((drone) => {
-          // Get Ghost Target Info
-          drone.target.getWorldPosition(targetPos);
-          drone.target.getWorldQuaternion(targetQuat);
-          drone.target.getWorldScale(targetScale);
-
-          // DEBUG: If scale is suspiciously small, force it up
-          // This fixes issues where AR initializes at scale 0
-          if (targetScale.x < 0.001) {
-             targetScale.set(0.017, 0.017, 0.017);
-          }
-
-          // Physics Interpolation
-          drone.mesh.position.lerp(targetPos, drone.speed);
-          drone.mesh.quaternion.slerp(targetQuat, drone.speed);
-          drone.mesh.scale.lerp(targetScale, 0.1);
+        this.drones.forEach(drone => {
+            // Gentle Hover Animation
+            const hover = Math.sin((time / 1000) * 1.5 + drone.noiseOffset) * 0.5;
+            
+            drone.mesh.position.copy(drone.basePos);
+            drone.mesh.position.z += hover;
         });
-
-        // --- CONSOLE LOGGER (Runs once per second) ---
-        this.timer += timeDelta;
-        if (this.timer > 1000) {
-           const d = this.drones[0];
-           console.log(`Drone 0 Status: 
-             Visible: ${d.mesh.visible}
-             Pos: ${d.mesh.position.x.toFixed(3)}, ${d.mesh.position.y.toFixed(3)}, ${d.mesh.position.z.toFixed(3)}
-             Scale: ${d.mesh.scale.x.toFixed(4)}`);
-           this.timer = 0;
-        }
       }
     });
 
@@ -262,7 +267,7 @@
       <a-mixin id="label-font"
                text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/orbitron/Orbitron-Bold.json; 
                      shader: msdf; align: center; width: 4; negate: true"> </a-mixin>
-      <a-asset-item id="illusion-model" src="./illusion_groups2.glb"></a-asset-item>
+      <a-asset-item id="illusion-model" src="./illusion_swarm2.glb"></a-asset-item>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
