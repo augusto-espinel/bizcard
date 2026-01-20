@@ -100,7 +100,7 @@
       }
     });
 
-// --- SLOW SPINNING STATIONARY SWARM ---
+// --- EXACT FORMATION SWARM (No Hover, Random Spin) ---
     AFRAME.registerComponent('drone-swarm', {
       init: function() {
         this.drones = [];
@@ -118,7 +118,7 @@
           const pieces = [];
           originalObj.traverse((node) => { if (node.isMesh) pieces.push(node); });
           
-          console.log(`Swarm: Loaded ${pieces.length} drones. Cycle: 4s.`);
+          console.log(`Swarm: Restoring ${pieces.length} drones to original formation.`);
 
           pieces.forEach((original, index) => {
             original.visible = false; 
@@ -151,24 +151,29 @@
             // 3. ATTACH TO CARD
             this.el.object3D.add(droneMesh);
             
-            // 4. SETUP BASE ROTATION
+            // 4. ROTATION (Copy Original)
             const baseQuat = original.quaternion.clone();
             droneMesh.quaternion.copy(baseQuat);
 
-            // 5. SCALE & POSITION
+            // 5. SCALE (50x)
             const finalScale = 40.0;
             droneMesh.scale.set(finalScale, finalScale, finalScale);
-            const spread = 6.0; 
             
+            // 6. POSITION (Restore Original Formation)
+            // We take the original position from the file...
+            const originalPos = original.position.clone();
+            
+            // ...and multiply it by our scale so the spacing matches the cube size
+            originalPos.multiplyScalar(finalScale);
+
+            // Add the Z-Offset (Distance from card)
+            // We add 20.0 to lift the whole formation up
+            originalPos.z += 10.0;
+
             this.drones.push({
               mesh: droneMesh,
               baseQuat: baseQuat, 
-              basePos: new THREE.Vector3(
-                  (Math.random() - 0.5) * spread,    
-                  (Math.random() - 0.5) * spread,    
-                  10.0 + (Math.random() * 5.0)       
-              ),
-              noiseOffset: Math.random() * 100,
+              basePos: originalPos, // <--- EXACT POSITION FROM FILE
 
               // Spin Data
               isSpinning: false,
@@ -184,33 +189,28 @@
 
         // --- 1. TIMER (Every 4 Seconds) ---
         this.timer += timeDelta;
-        if (this.timer > 5000) {  // Changed from 3000 to 4000
+        if (this.timer > 8000) {  
             this.timer = 0;
             this.triggerSpin();
         }
 
         this.drones.forEach(drone => {
-            // --- A. HOVER ---
-            // const hover = Math.sin((time / 1000) * 1.5 + drone.noiseOffset) * 0.5;
-            // drone.mesh.position.copy(drone.basePos);
-            // drone.mesh.position.z += hover;
+            // --- A. POSITION (Static - No Hover) ---
+            // We strictly enforce the base position every frame
+            // to ensure they stay locked in formation.
+            drone.mesh.position.copy(drone.basePos);
 
             // --- B. SPIN ANIMATION ---
             if (drone.isSpinning) {
-                // Slower Speed: 0.008 (Takes ~2 seconds to finish)
-                // Was 0.02 (0.8 seconds)
-                drone.spinProgress += 0.008; 
+                drone.spinProgress += 0.004; 
 
                 if (drone.spinProgress >= 1.0) {
                     drone.spinProgress = 0;
                     drone.isSpinning = false;
                     drone.mesh.quaternion.copy(drone.baseQuat); 
                 } else {
-                    // Ease Out Quad
                     const t = drone.spinProgress;
                     const ease = 1 - (1 - t) * (1 - t); 
-                    
-                    // 2 Full Rotations (720 deg)
                     const angle = ease * (Math.PI * 4); 
 
                     const spinQuat = new THREE.Quaternion();
@@ -227,13 +227,11 @@
             drone.isSpinning = true;
             drone.spinProgress = 0;
 
-            // --- NEW RANDOM AXIS EVERY CYCLE ---
             const r = Math.random();
-            if (r < 0.33) drone.spinAxis.set(1, 0, 0);       // X
-            else if (r < 0.66) drone.spinAxis.set(0, 1, 0);  // Y
-            else drone.spinAxis.set(0, 0, 1);                // Z
+            if (r < 0.33) drone.spinAxis.set(1, 0, 0);       
+            else if (r < 0.66) drone.spinAxis.set(0, 1, 0);  
+            else drone.spinAxis.set(0, 0, 1);                
             
-            // Add wobble
             drone.spinAxis.x += (Math.random() - 0.5) * 0.5;
             drone.spinAxis.y += (Math.random() - 0.5) * 0.5;
             drone.spinAxis.z += (Math.random() - 0.5) * 0.5;
