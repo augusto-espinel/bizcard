@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Augusto Espinel - AR Business Card</title>
+  <title>TRON AR - Drone Swarm</title>
   
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -16,16 +16,14 @@
 
     #overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(5, 10, 20, 0.98); /* Deep Navy/Black background */
+      background: rgba(5, 10, 20, 0.98); 
       display: flex; flex-direction: column;
       justify-content: center; align-items: center; z-index: 9999;
       color: #FFFFFF;
     }
     
-    /* Title has a Red Shadow to match logo */
     h1 { font-family: 'Orbitron', sans-serif; font-size: 2rem; text-align: center; text-shadow: 0 0 10px #FF0000; }
     
-    /* Button: White Text, Red Border (High Contrast) */
     #start-btn {
       background: transparent; color: #FFFFFF; font-family: 'Orbitron', sans-serif; font-size: 1.2rem;
       padding: 15px 40px; border: 2px solid #FF0000; cursor: pointer; margin-top: 30px;
@@ -40,197 +38,173 @@
       transform: translate(-50%, -50%); pointer-events: none; z-index: 5000;
       box-shadow: 0 0 5px #FFFFFF;
     }
-    /* NEW: BOTTOM LEFT CONTACT BUTTON */
     #contact-btn {
-      position: absolute; 
-      bottom: 20px; 
-      left: 20px;
-      z-index: 8000; /* Above scene, below overlay */
-      
-      background: rgba(10, 0, 0, 0.6); /* Semi-transparent dark red */
-      color: #FFFFFF;
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 14px;
-      padding: 12px 20px;
-      border: 1px solid #FF0000;
-      border-radius: 4px;
-      cursor: pointer;
-      backdrop-filter: blur(2px);
-      box-shadow: 0 0 5px #550000;
-      
-      /* Hidden initially until start button is clicked (handled by UI logic) */
+      position: absolute; bottom: 20px; left: 20px; z-index: 8000;
+      background: rgba(10, 0, 0, 0.6); color: #FFFFFF;
+      font-family: 'Share Tech Mono', monospace; font-size: 14px;
+      padding: 12px 20px; border: 1px solid #FF0000; border-radius: 4px;
+      cursor: pointer; backdrop-filter: blur(2px); box-shadow: 0 0 5px #550000;
       display: none; 
     }
-    #contact-btn:active {
-      background: #FF0000;
-      color: #000;
-    }
+    #contact-btn:active { background: #FF0000; color: #000; }
   </style>
 
   <script>
-    // --- GLOBAL FUNCTION: DOWNLOAD CONTACT ---
-    // Accessible by both the AR text and the 2D button
     window.triggerContactDownload = function() {
       console.log("Generating Contact Card...");
-      
-      // EDIT YOUR DETAILS HERE
       const vCardData = [
-        "BEGIN:VCARD",
-        "VERSION:3.0",
-        "FN:Augusto Espinel Porras",           // Full Name
-        "TEL;TYPE=CELL:++41796979516", // Phone Number
-        "EMAIL;TYPE=WORK:augusto.espinel@gmail.com", // Email
-        "URL:https://augusto-espinel.github.io",   // Website
-        "END:VCARD"
+        "BEGIN:VCARD", "VERSION:3.0", "FN:Augusto Espinel Porras", "TEL;TYPE=CELL:++41796979516", 
+        "EMAIL;TYPE=WORK:augusto.espinel@gmail.com", "URL:https://augusto-espinel.github.io", "END:VCARD"
       ].join("\n");
-
       const blob = new Blob([vCardData], { type: "text/vcard" });
       const url = URL.createObjectURL(blob);
-      
       const newLink = document.createElement('a');
-      newLink.download = "contact.vcf";
-      newLink.textContent = "Download Contact";
-      newLink.href = url;
-      newLink.click();
-      
+      newLink.download = "contact.vcf"; newLink.textContent = "Download Contact"; newLink.href = url; newLink.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
-    // --- 1. SHADER: DEEP NAVY PULSE ---
+
     AFRAME.registerShader('spillover-tunnel', {
-      schema: { 
-        color: {type: 'color', is: 'uniform', default: '#0A1128'}, // Midnight Navy
-        time: {type: 'float', is: 'uniform', default: 0.0} 
-      },
+      schema: { color: {type: 'color', is: 'uniform', default: '#0A1128'}, time: {type: 'float', is: 'uniform', default: 0.0} },
       vertexShader: `varying vec3 vPos; void main() { vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: `
-        uniform vec3 color; 
-        uniform float time; 
-        varying vec3 vPos;
-        
-        float hexDist(vec2 p) {
-            p = abs(p);
-            float c = dot(p, normalize(vec2(1.0, 1.73)));
-            c = max(c, p.x);
-            return c;
-        }
-
+        uniform vec3 color; uniform float time; varying vec3 vPos;
+        float hexDist(vec2 p) { p = abs(p); float c = dot(p, normalize(vec2(1.0, 1.73))); c = max(c, p.x); return c; }
         void main() {
-          float r = max(abs(vPos.x), abs(vPos.y)); 
-          float a = atan(vPos.y, vPos.x);
-          float z = (1.0 / r) + (time * 0.5); 
-          vec2 uv = vec2(a * 3.0, z); // Increase 4.0 for more horizontal tiles
-
-          // Hex Grid
-          vec2 rVec = vec2(1.0, 1.73);
-          vec2 h = rVec * 0.5;
-          vec2 aMod = mod(uv, rVec) - h;
-          vec2 bMod = mod(uv - h, rVec) - h;
+          float r = max(abs(vPos.x), abs(vPos.y)); float a = atan(vPos.y, vPos.x);
+          float z = (1.0 / r) + (time * 0.5); vec2 uv = vec2(a * 3.0, z); 
+          vec2 rVec = vec2(1.0, 1.73); vec2 h = rVec * 0.5;
+          vec2 aMod = mod(uv, rVec) - h; vec2 bMod = mod(uv - h, rVec) - h;
           vec2 gv = dot(aMod, aMod) < dot(bMod, bMod) ? aMod : bMod;
-          float dist = hexDist(gv);
-          
-          float hexLine = smoothstep(0.47, 0.48, dist);
-
-          // Pulse Wave
-          float pulseSpeed = time * 0.15;
-          float pulsePos = fract((z * 0.2) + pulseSpeed); 
-          // Starts at 0.2, ends at 0.8 (Wide, soft wave)
+          float dist = hexDist(gv); float hexLine = smoothstep(0.47, 0.48, dist);
+          float pulseSpeed = time * 0.15; float pulsePos = fract((z * 0.2) + pulseSpeed); 
           float pulse = smoothstep(0.2, 0.5, pulsePos) * smoothstep(0.8, 0.5, pulsePos);
-          
-          // --- COLORS ---
-          // 1. Base Grid: Deep Navy (from uniform)
-          vec3 baseLine = color * 1.5; 
-          
-          // 2. Pulse Color: Ocean Blue (#0077BE)
-          // RGB: 0.0, 0.27, 0.45
-          vec3 pulseColor = vec3(0.0, 0.27, 0.45) * 3.0; // Boosted brightness
-          
-          // Mix
+          vec3 baseLine = color * 1.5; vec3 pulseColor = vec3(0.0, 0.27, 0.45) * 3.0; 
           vec3 finalLineRGB = (baseLine + (pulseColor * pulse)) * hexLine;
-
-          // Masking
-          float inWindowX = step(abs(vPos.x), 0.5); 
-          float inWindowY = step(abs(vPos.y), 0.3);
-          float inWindow = inWindowX * inWindowY;
-          vec3 voidColor = vec3(0.0, 0.0, 0.01); // Near black void
-          
-          vec3 finalRGB = finalLineRGB + (voidColor * inWindow);
-          float finalAlpha = max(hexLine, inWindow);
-          
+          float inWindowX = step(abs(vPos.x), 0.5); float inWindowY = step(abs(vPos.y), 0.3);
+          float inWindow = inWindowX * inWindowY; vec3 voidColor = vec3(0.0, 0.0, 0.01); 
+          vec3 finalRGB = finalLineRGB + (voidColor * inWindow); float finalAlpha = max(hexLine, inWindow);
           gl_FragColor = vec4(finalRGB, finalAlpha);
         }
       `
     });
 
-    AFRAME.registerComponent('shader-clock', {
-      tick: function (time, timeDelta) {
-        const mesh = this.el.getObject3D('mesh');
-        if(mesh && mesh.material.uniforms) mesh.material.uniforms.time.value = time / 1000; 
-      }
-    });
+    AFRAME.registerComponent('shader-clock', { tick: function (time, timeDelta) { const mesh = this.el.getObject3D('mesh'); if(mesh && mesh.material.uniforms) mesh.material.uniforms.time.value = time / 1000; } });
 
-    // --- 2. OBJECT: DARK RED + NEON RED WIREFRAME ---
-    AFRAME.registerComponent('style-red-wireframe', {
-      init: function() {
-        this.el.addEventListener('model-loaded', () => {
-          const object = this.el.getObject3D('mesh');
-          if (!object) return;
-          const meshes = [];
-          object.traverse((node) => { if (node.isMesh) meshes.push(node); });
-          meshes.forEach((node) => {
-            // A. Dark Blood Red Base (#550000)
-            node.material = new THREE.MeshStandardMaterial({
-              color: 0x550000, 
-              metalness: 0.8, // More metallic
-              roughness: 0.2, // Shinier
-            });
-            
-            // B. Neon Red Wireframe (#FF0000)
-            const wireMesh = new THREE.Mesh(
-              node.geometry,
-              new THREE.MeshBasicMaterial({ 
-                color: 0xFF0000, 
-                wireframe: true, 
-                transparent: true, 
-                opacity: 0.8 
-              })
-            );
-            node.add(wireMesh);
-          });
-        });
-      }
-    });
-
-    // --- 3. UI LOGIC (Updated to show fallback button) ---
     AFRAME.registerComponent('ui-logic', {
       init: function() {
         document.getElementById('start-btn').addEventListener('click', () => {
           document.getElementById('overlay').style.display = 'none';
-          // Show the fallback button when AR starts
           document.getElementById('contact-btn').style.display = 'block';
         });
-        
-        // Connect the fallback button to the global function
-        document.getElementById('contact-btn').addEventListener('click', () => {
-          window.triggerContactDownload();
-        });
+        document.getElementById('contact-btn').addEventListener('click', () => { window.triggerContactDownload(); });
       }
     });
-    // --- 4. INTERACTION: STEEL BLUE -> RED ---
+
+// --- DEBUG DRONE SWARM ---
+    AFRAME.registerComponent('drone-swarm', {
+      init: function() {
+        this.drones = [];
+        this.timer = 0; // For debug logging
+        
+        this.el.addEventListener('model-loaded', () => {
+          const originalObj = this.el.getObject3D('mesh');
+          if (!originalObj) return;
+
+          const scene = document.querySelector('a-scene').object3D;
+          const pieces = [];
+
+          originalObj.traverse((node) => {
+            if (node.isMesh) pieces.push(node);
+          });
+          
+          console.log("Drone Swarm: Found " + pieces.length + " pieces."); 
+
+          pieces.forEach((original, index) => {
+            original.visible = false; // Hide original
+
+            // DEBUG MATERIAL: Bright Green & Basic (Unlit)
+            // This ensures visibility even if lighting is broken
+            const droneMat = new THREE.MeshBasicMaterial({
+              color: 0x00FF00, // NEON GREEN
+              wireframe: true 
+            });
+            
+            const droneMesh = new THREE.Mesh(original.geometry, droneMat);
+
+            // Capture initial World Transforms
+            const worldPos = new THREE.Vector3();
+            const worldQuat = new THREE.Quaternion();
+            const worldScale = new THREE.Vector3();
+            
+            original.getWorldPosition(worldPos);
+            original.getWorldQuaternion(worldQuat);
+            original.getWorldScale(worldScale);
+            
+            droneMesh.position.copy(worldPos);
+            droneMesh.quaternion.copy(worldQuat);
+            droneMesh.scale.copy(worldScale);
+            
+            scene.add(droneMesh);
+
+            this.drones.push({
+              id: index,
+              mesh: droneMesh,
+              target: original,
+              speed: 0.05 + Math.random() * 0.05,
+              offset: Math.random() * 100
+            });
+          });
+        });
+      },
+      
+      tick: function(time, timeDelta) {
+        if (this.drones.length === 0) return;
+
+        const targetPos = new THREE.Vector3();
+        const targetQuat = new THREE.Quaternion();
+        const targetScale = new THREE.Vector3();
+
+        this.drones.forEach((drone) => {
+          // Get Ghost Target Info
+          drone.target.getWorldPosition(targetPos);
+          drone.target.getWorldQuaternion(targetQuat);
+          drone.target.getWorldScale(targetScale);
+
+          // DEBUG: If scale is suspiciously small, force it up
+          // This fixes issues where AR initializes at scale 0
+          if (targetScale.x < 0.001) {
+             targetScale.set(0.017, 0.017, 0.017);
+          }
+
+          // Physics Interpolation
+          drone.mesh.position.lerp(targetPos, drone.speed);
+          drone.mesh.quaternion.slerp(targetQuat, drone.speed);
+          drone.mesh.scale.lerp(targetScale, 0.1);
+        });
+
+        // --- CONSOLE LOGGER (Runs once per second) ---
+        this.timer += timeDelta;
+        if (this.timer > 1000) {
+           const d = this.drones[0];
+           console.log(`Drone 0 Status: 
+             Visible: ${d.mesh.visible}
+             Pos: ${d.mesh.position.x.toFixed(3)}, ${d.mesh.position.y.toFixed(3)}, ${d.mesh.position.z.toFixed(3)}
+             Scale: ${d.mesh.scale.x.toFixed(4)}`);
+           this.timer = 0;
+        }
+      }
+    });
+
     AFRAME.registerComponent('screen-center-selector', {
       init: function() {
         this.camera = document.querySelector('a-camera');
         this.targets = Array.from(document.querySelectorAll('.selectable'));
         this.activeTarget = null;
         this.vector = new THREE.Vector3(); 
-
         window.addEventListener('click', () => {
           if (this.activeTarget) {
             const url = this.activeTarget.getAttribute('data-url');
-            if (url === '#save-contact') {
-              window.triggerContactDownload(); // Call global function
-            } else if(url) {
-              window.open(url, '_blank');
-            }
+            if (url === '#save-contact') { window.triggerContactDownload(); } else if(url) { window.open(url, '_blank'); }
           }
         });
       },
@@ -238,54 +212,25 @@
         const camComponent = this.camera.components.camera;
         if (!camComponent || !camComponent.camera) return;
         const threeCamera = camComponent.camera;
-        let closestDist = 0.5; 
-        let foundTarget = null;
-
+        let closestDist = 0.5; let foundTarget = null;
         this.targets.forEach((target) => {
           target.object3D.getWorldPosition(this.vector);
           this.vector.project(threeCamera);
           if (this.vector.z < 1) {
             const dist = Math.sqrt(this.vector.x * this.vector.x + this.vector.y * this.vector.y);
-            if (dist < closestDist) {
-              closestDist = dist;
-              foundTarget = target;
-            }
+            if (dist < closestDist) { closestDist = dist; foundTarget = target; }
           }
         });
-
         if (foundTarget !== this.activeTarget) {
-          
-          // RESET (Resting State)
           if (this.activeTarget) {
             this.activeTarget.setAttribute('scale', '1.5 1.5 1.5');
-            
-            // Core: Light Steel Blue (#B0C4DE) - Very readable
-            const core = this.activeTarget.querySelector('.text-core');
-            if (core) core.setAttribute('color', '#B0C4DE');
-            
-            // Glow: Faint Blue
-            const glow = this.activeTarget.querySelector('.text-glow');
-            if (glow) {
-              glow.setAttribute('color', '#B0C4DE');
-              glow.setAttribute('opacity', '0.2');
-            }
+            const core = this.activeTarget.querySelector('.text-core'); if (core) core.setAttribute('color', '#B0C4DE');
+            const glow = this.activeTarget.querySelector('.text-glow'); if (glow) { glow.setAttribute('color', '#B0C4DE'); glow.setAttribute('opacity', '0.2'); }
           }
-          
-          // ACTIVE (Red State)
           if (foundTarget) {
             foundTarget.setAttribute('scale', '1.5 1.5 1.5');
-            
-            // Core: White (#FFFFFF) for max readability when selected
-            const core = foundTarget.querySelector('.text-core');
-            if (core) core.setAttribute('color', '#FFFFFF');
-            
-            // Glow: Deep Red (#FF0000)
-            const glow = foundTarget.querySelector('.text-glow');
-            if (glow) {
-              glow.setAttribute('color', '#FF0000');
-              glow.setAttribute('opacity', '0.9');
-            }
-
+            const core = foundTarget.querySelector('.text-core'); if (core) core.setAttribute('color', '#FFFFFF');
+            const glow = foundTarget.querySelector('.text-glow'); if (glow) { glow.setAttribute('color', '#FF0000'); glow.setAttribute('opacity', '0.9'); }
             if(window.navigator.vibrate) window.navigator.vibrate(20);
           }
           this.activeTarget = foundTarget;
@@ -302,7 +247,6 @@
   </div>
 
   <button id="contact-btn">SAVE CONTACT</button>
-  
   <div id="crosshair"></div>
 
   <a-scene 
@@ -318,7 +262,7 @@
       <a-mixin id="label-font"
                text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/orbitron/Orbitron-Bold.json; 
                      shader: msdf; align: center; width: 4; negate: true"> </a-mixin>
-      <a-asset-item id="illusion-model" src="./illusion.glb"></a-asset-item>
+      <a-asset-item id="illusion-model" src="./illusion_groups2.glb"></a-asset-item>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -338,7 +282,7 @@
       <a-entity 
         id="illusion-obj"
         gltf-model="#illusion-model"
-        style-red-wireframe
+        drone-swarm
         position="0 0 0.2" 
         scale="0.017 0.017 0.017"> 
       </a-entity>
