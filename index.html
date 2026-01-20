@@ -184,16 +184,16 @@
 
         // --- 1. TIMER (Every 4 Seconds) ---
         this.timer += timeDelta;
-        if (this.timer > 4000) {  // Changed from 3000 to 4000
+        if (this.timer > 5000) {  // Changed from 3000 to 4000
             this.timer = 0;
             this.triggerSpin();
         }
 
         this.drones.forEach(drone => {
             // --- A. HOVER ---
-            const hover = Math.sin((time / 1000) * 1.5 + drone.noiseOffset) * 0.5;
-            drone.mesh.position.copy(drone.basePos);
-            drone.mesh.position.z += hover;
+            // const hover = Math.sin((time / 1000) * 1.5 + drone.noiseOffset) * 0.5;
+            // drone.mesh.position.copy(drone.basePos);
+            // drone.mesh.position.z += hover;
 
             // --- B. SPIN ANIMATION ---
             if (drone.isSpinning) {
