@@ -100,13 +100,13 @@
       }
     });
 
-// --- FINAL GOLD MASTER: DRONE SWARM ---
+// --- SLOW SPINNING STATIONARY SWARM ---
     AFRAME.registerComponent('drone-swarm', {
       init: function() {
         this.drones = [];
-        const scene = document.querySelector('a-scene').object3D;
+        this.timer = 0;       
         
-        // Add Light for Metallic Reflection
+        const scene = document.querySelector('a-scene').object3D;
         const light = new THREE.DirectionalLight(0xffffff, 2.0);
         light.position.set(1, 1, 2);
         scene.add(light);
@@ -116,21 +116,18 @@
           if (!originalObj) return;
 
           const pieces = [];
-          originalObj.traverse((node) => {
-            if (node.isMesh) pieces.push(node);
-          });
+          originalObj.traverse((node) => { if (node.isMesh) pieces.push(node); });
           
-          console.log(`Swarm: Loaded ${pieces.length} drones at Z=20.`);
+          console.log(`Swarm: Loaded ${pieces.length} drones. Cycle: 4s.`);
 
           pieces.forEach((original, index) => {
             original.visible = false; 
 
-            // 1. PREPARE GEOMETRY
+            // 1. GEOMETRY
             const fixedGeo = original.geometry.clone();
             fixedGeo.computeBoundingBox();
             fixedGeo.center(); 
             
-            // Normalize Size
             const size = new THREE.Vector3();
             fixedGeo.boundingBox.getSize(size);
             const maxDim = Math.max(size.x, size.y, size.z);
@@ -139,20 +136,14 @@
                 fixedGeo.scale(scaleFactor, scaleFactor, scaleFactor);
             }
 
-            // 2. MATERIALS (Cyberpunk Style)
+            // 2. MATERIALS
             const bodyMat = new THREE.MeshStandardMaterial({
-              color: 0x550000, 
-              metalness: 0.9, 
-              roughness: 0.2,
-              side: THREE.DoubleSide
+              color: 0x550000, metalness: 0.9, roughness: 0.2, side: THREE.DoubleSide
             });
             const droneMesh = new THREE.Mesh(fixedGeo, bodyMat);
             
             const wireMat = new THREE.MeshBasicMaterial({
-              color: 0xFF0000, 
-              wireframe: true,
-              transparent: true,
-              opacity: 0.8
+              color: 0xFF0000, wireframe: true, transparent: true, opacity: 0.8
             });
             const wireMesh = new THREE.Mesh(fixedGeo, wireMat);
             droneMesh.add(wireMesh);
@@ -160,28 +151,29 @@
             // 3. ATTACH TO CARD
             this.el.object3D.add(droneMesh);
             
-            // 4. COPY ROTATION (Puzzle Piece Logic)
-            droneMesh.rotation.copy(original.rotation);
-            
-            // 5. SCALE (50x)
-            const finalScale = 50.0;
+            // 4. SETUP BASE ROTATION
+            const baseQuat = original.quaternion.clone();
+            droneMesh.quaternion.copy(baseQuat);
+
+            // 5. SCALE & POSITION
+            const finalScale = 40.0;
             droneMesh.scale.set(finalScale, finalScale, finalScale);
-            
-            // 6. POSITIONING
             const spread = 6.0; 
             
             this.drones.push({
               mesh: droneMesh,
+              baseQuat: baseQuat, 
               basePos: new THREE.Vector3(
                   (Math.random() - 0.5) * spread,    
                   (Math.random() - 0.5) * spread,    
-                  
-                  // --- Z-OFFSET: 20.0 ---
-                  // 20.0 = Base height (approx 2cm visually)
-                  // + Math.random() * 5.0 = Add depth so they aren't a flat sheet
-                  20.0 + (Math.random() * 5.0)       
+                  10.0 + (Math.random() * 5.0)       
               ),
-              noiseOffset: Math.random() * 100
+              noiseOffset: Math.random() * 100,
+
+              // Spin Data
+              isSpinning: false,
+              spinProgress: 0,
+              spinAxis: new THREE.Vector3(0, 1, 0) 
             });
           });
         });
@@ -190,12 +182,62 @@
       tick: function(time, timeDelta) {
         if (this.drones.length === 0) return;
 
+        // --- 1. TIMER (Every 4 Seconds) ---
+        this.timer += timeDelta;
+        if (this.timer > 4000) {  // Changed from 3000 to 4000
+            this.timer = 0;
+            this.triggerSpin();
+        }
+
         this.drones.forEach(drone => {
-            // Gentle Hover Animation
+            // --- A. HOVER ---
             const hover = Math.sin((time / 1000) * 1.5 + drone.noiseOffset) * 0.5;
-            
             drone.mesh.position.copy(drone.basePos);
             drone.mesh.position.z += hover;
+
+            // --- B. SPIN ANIMATION ---
+            if (drone.isSpinning) {
+                // Slower Speed: 0.008 (Takes ~2 seconds to finish)
+                // Was 0.02 (0.8 seconds)
+                drone.spinProgress += 0.008; 
+
+                if (drone.spinProgress >= 1.0) {
+                    drone.spinProgress = 0;
+                    drone.isSpinning = false;
+                    drone.mesh.quaternion.copy(drone.baseQuat); 
+                } else {
+                    // Ease Out Quad
+                    const t = drone.spinProgress;
+                    const ease = 1 - (1 - t) * (1 - t); 
+                    
+                    // 2 Full Rotations (720 deg)
+                    const angle = ease * (Math.PI * 4); 
+
+                    const spinQuat = new THREE.Quaternion();
+                    spinQuat.setFromAxisAngle(drone.spinAxis, angle);
+
+                    drone.mesh.quaternion.copy(drone.baseQuat).multiply(spinQuat);
+                }
+            }
+        });
+      },
+
+      triggerSpin: function() {
+        this.drones.forEach(drone => {
+            drone.isSpinning = true;
+            drone.spinProgress = 0;
+
+            // --- NEW RANDOM AXIS EVERY CYCLE ---
+            const r = Math.random();
+            if (r < 0.33) drone.spinAxis.set(1, 0, 0);       // X
+            else if (r < 0.66) drone.spinAxis.set(0, 1, 0);  // Y
+            else drone.spinAxis.set(0, 0, 1);                // Z
+            
+            // Add wobble
+            drone.spinAxis.x += (Math.random() - 0.5) * 0.5;
+            drone.spinAxis.y += (Math.random() - 0.5) * 0.5;
+            drone.spinAxis.z += (Math.random() - 0.5) * 0.5;
+            drone.spinAxis.normalize();
         });
       }
     });
@@ -267,7 +309,7 @@
       <a-mixin id="label-font"
                text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/orbitron/Orbitron-Bold.json; 
                      shader: msdf; align: center; width: 4; negate: true"> </a-mixin>
-      <a-asset-item id="illusion-model" src="./illusion_swarm2.glb"></a-asset-item>
+      <a-asset-item id="illusion-model" src="./illusion_swarm.glb"></a-asset-item>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
