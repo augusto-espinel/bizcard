@@ -100,145 +100,141 @@
       }
     });
 
-// --- EXACT FORMATION SWARM (No Hover, Random Spin) ---
-    AFRAME.registerComponent('drone-swarm', {
-      init: function() {
-        this.drones = [];
-        this.timer = 0;       
-        
-        const scene = document.querySelector('a-scene').object3D;
-        const light = new THREE.DirectionalLight(0xffffff, 2.0);
-        light.position.set(1, 1, 2);
-        scene.add(light);
+// --- EXACT PROPORTION SWARM (Preserves Logo Shape) ---
+AFRAME.registerComponent('drone-swarm', {
+  init: function() {
+    this.drones = [];
+    this.timer = 0;       
+    
+    const scene = document.querySelector('a-scene').object3D;
+    const light = new THREE.DirectionalLight(0xffffff, 2.0);
+    light.position.set(1, 1, 2);
+    scene.add(light);
 
-        this.el.addEventListener('model-loaded', () => {
-          const originalObj = this.el.getObject3D('mesh');
-          if (!originalObj) return;
+    this.el.addEventListener('model-loaded', () => {
+      const originalObj = this.el.getObject3D('mesh');
+      if (!originalObj) return;
 
-          const pieces = [];
-          originalObj.traverse((node) => { if (node.isMesh) pieces.push(node); });
-          
-          console.log(`Swarm: Restoring ${pieces.length} drones to original formation.`);
-
-          pieces.forEach((original, index) => {
-            original.visible = false; 
-
-            // 1. GEOMETRY
-            const fixedGeo = original.geometry.clone();
-            fixedGeo.computeBoundingBox();
-            fixedGeo.center(); 
-            
-            const size = new THREE.Vector3();
-            fixedGeo.boundingBox.getSize(size);
-            const maxDim = Math.max(size.x, size.y, size.z);
-            if (maxDim > 0) {
-                const scaleFactor = 1.0 / maxDim;
-                fixedGeo.scale(scaleFactor, scaleFactor, scaleFactor);
-            }
-
-            // 2. MATERIALS
-            const bodyMat = new THREE.MeshStandardMaterial({
-              color: 0x550000, metalness: 0.9, roughness: 0.2, side: THREE.DoubleSide
-            });
-            const droneMesh = new THREE.Mesh(fixedGeo, bodyMat);
-            
-            const wireMat = new THREE.MeshBasicMaterial({
-              color: 0xFF0000, wireframe: true, transparent: true, opacity: 0.8
-            });
-            const wireMesh = new THREE.Mesh(fixedGeo, wireMat);
-            droneMesh.add(wireMesh);
-
-            // 3. ATTACH TO CARD
-            this.el.object3D.add(droneMesh);
-            
-            // 4. ROTATION (Copy Original)
-            const baseQuat = original.quaternion.clone();
-            droneMesh.quaternion.copy(baseQuat);
-
-            // 5. SCALE (50x)
-            const finalScale = 40.0;
-            droneMesh.scale.set(finalScale, finalScale, finalScale);
-            
-            // 6. POSITION (Restore Original Formation)
-            // We take the original position from the file...
-            const originalPos = original.position.clone();
-            
-            // ...and multiply it by our scale so the spacing matches the cube size
-            originalPos.multiplyScalar(finalScale);
-
-            // Add the Z-Offset (Distance from card)
-            // We add 20.0 to lift the whole formation up
-            originalPos.z += 10.0;
-
-            this.drones.push({
-              mesh: droneMesh,
-              baseQuat: baseQuat, 
-              basePos: originalPos, // <--- EXACT POSITION FROM FILE
-
-              // Spin Data
-              isSpinning: false,
-              spinProgress: 0,
-              spinAxis: new THREE.Vector3(0, 1, 0) 
-            });
-          });
-        });
-      },
+      const pieces = [];
+      originalObj.traverse((node) => { if (node.isMesh) pieces.push(node); });
       
-      tick: function(time, timeDelta) {
-        if (this.drones.length === 0) return;
+      console.log(`Swarm: Loaded ${pieces.length} drones. Preserving original proportions.`);
 
-        // --- 1. TIMER (Every 4 Seconds) ---
-        this.timer += timeDelta;
-        if (this.timer > 8000) {  
-            this.timer = 0;
-            this.triggerSpin();
-        }
+      pieces.forEach((original, index) => {
+        original.visible = false; 
 
-        this.drones.forEach(drone => {
-            // --- A. POSITION (Static - No Hover) ---
-            // We strictly enforce the base position every frame
-            // to ensure they stay locked in formation.
-            drone.mesh.position.copy(drone.basePos);
-
-            // --- B. SPIN ANIMATION ---
-            if (drone.isSpinning) {
-                drone.spinProgress += 0.004; 
-
-                if (drone.spinProgress >= 1.0) {
-                    drone.spinProgress = 0;
-                    drone.isSpinning = false;
-                    drone.mesh.quaternion.copy(drone.baseQuat); 
-                } else {
-                    const t = drone.spinProgress;
-                    const ease = 1 - (1 - t) * (1 - t); 
-                    const angle = ease * (Math.PI * 4); 
-
-                    const spinQuat = new THREE.Quaternion();
-                    spinQuat.setFromAxisAngle(drone.spinAxis, angle);
-
-                    drone.mesh.quaternion.copy(drone.baseQuat).multiply(spinQuat);
-                }
-            }
+        // 1. GEOMETRY (TRUST THE GLB)
+        // We clone it to be safe, but we DO NOT center or resize it.
+        // This preserves the "offset" of the vertices relative to the pivot.
+        const fixedGeo = original.geometry.clone();
+        
+        // 2. MATERIALS
+        const bodyMat = new THREE.MeshStandardMaterial({
+          color: 0x550000, metalness: 0.9, roughness: 0.2, side: THREE.DoubleSide
         });
-      },
-
-      triggerSpin: function() {
-        this.drones.forEach(drone => {
-            drone.isSpinning = true;
-            drone.spinProgress = 0;
-
-            const r = Math.random();
-            if (r < 0.33) drone.spinAxis.set(1, 0, 0);       
-            else if (r < 0.66) drone.spinAxis.set(0, 1, 0);  
-            else drone.spinAxis.set(0, 0, 1);                
-            
-            drone.spinAxis.x += (Math.random() - 0.5) * 0.5;
-            drone.spinAxis.y += (Math.random() - 0.5) * 0.5;
-            drone.spinAxis.z += (Math.random() - 0.5) * 0.5;
-            drone.spinAxis.normalize();
+        const droneMesh = new THREE.Mesh(fixedGeo, bodyMat);
+        
+        const wireMat = new THREE.MeshBasicMaterial({
+          color: 0xFF0000, wireframe: true, transparent: true, opacity: 0.8
         });
-      }
+        const wireMesh = new THREE.Mesh(fixedGeo, wireMat);
+        droneMesh.add(wireMesh);
+
+        // 3. ATTACH TO CARD
+        this.el.object3D.add(droneMesh);
+        
+        // 4. ROTATION (Copy Original)
+        const baseQuat = original.quaternion.clone();
+        droneMesh.quaternion.copy(baseQuat);
+
+        // 5. SCALE (Global Multiplier)
+        // We apply this scale to the MESH, not the geometry.
+        // This scales the size of the piece AND its distance from center equally.
+        const finalScale = 200.0; 
+        droneMesh.scale.set(finalScale, finalScale, finalScale);
+        
+        // 6. POSITION (Scaled Offset)
+        // We take the local position from the GLB
+        const originalPos = original.position.clone();
+        
+        // We multiply the position by our scale factor so the chunks move apart 
+        // by the exact same amount that they grew in size.
+        originalPos.multiplyScalar(finalScale);
+
+        // Lift it up (Z-axis relative to card)
+        originalPos.z += 10.0;
+
+        this.drones.push({
+          mesh: droneMesh,
+          baseQuat: baseQuat, 
+          basePos: originalPos, 
+
+          // Spin Data
+          isSpinning: false,
+          spinProgress: 0,
+          spinAxis: new THREE.Vector3(0, 1, 0) 
+        });
+      });
     });
+  },
+  
+  tick: function(time, timeDelta) {
+    if (this.drones.length === 0) return;
+
+    // --- 1. TIMER (Every 4 Seconds) ---
+    this.timer += timeDelta;
+    if (this.timer > 8000) {  
+        this.timer = 0;
+        this.triggerSpin();
+    }
+
+    this.drones.forEach(drone => {
+        // --- A. POSITION (Locked) ---
+        drone.mesh.position.copy(drone.basePos);
+
+        // --- B. SPIN ANIMATION ---
+        if (drone.isSpinning) {
+            drone.spinProgress += 0.004; 
+
+            if (drone.spinProgress >= 1.0) {
+                // HARD RESET: Ensure it snaps 100% back to original
+                drone.spinProgress = 0;
+                drone.isSpinning = false;
+                drone.mesh.quaternion.copy(drone.baseQuat); 
+            } else {
+                const t = drone.spinProgress;
+                // Smoother Ease (Cubic)
+                const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                const angle = ease * (Math.PI * 4); // 720 degrees
+
+                const spinQuat = new THREE.Quaternion();
+                spinQuat.setFromAxisAngle(drone.spinAxis, angle);
+
+                // Apply rotation ON TOP of the base
+                drone.mesh.quaternion.copy(drone.baseQuat).multiply(spinQuat);
+            }
+        }
+    });
+  },
+
+  triggerSpin: function() {
+    this.drones.forEach(drone => {
+        drone.isSpinning = true;
+        drone.spinProgress = 0;
+
+        // Random Axis
+        const r = Math.random();
+        if (r < 0.33) drone.spinAxis.set(1, 0, 0);       
+        else if (r < 0.66) drone.spinAxis.set(0, 1, 0);  
+        else drone.spinAxis.set(0, 0, 1);                
+        
+        drone.spinAxis.x += (Math.random() - 0.5) * 0.5;
+        drone.spinAxis.y += (Math.random() - 0.5) * 0.5;
+        drone.spinAxis.z += (Math.random() - 0.5) * 0.5;
+        drone.spinAxis.normalize();
+    });
+  }
+});
 
     AFRAME.registerComponent('screen-center-selector', {
       init: function() {
