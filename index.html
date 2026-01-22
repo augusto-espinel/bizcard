@@ -271,13 +271,16 @@ if (foundTarget !== this.activeTarget) {
             
             // Reset Core to White
             const core = this.activeTarget.querySelector('.text-core'); 
-            if (core) core.setAttribute('color', '#FFFFFF');
+            if (core) { 
+                core.setAttribute('color', '#FFFFFF'); // Active Red
+                core.setAttribute('alphaTest', '0.8');   // Full brightness
+            }
             
             // Reset Glow to Cyan (Idle state) and Low Opacity
             const glow = this.activeTarget.querySelector('.text-glow'); 
             if (glow) { 
-                glow.setAttribute('color', '#B0C4DE'); // Back to Cyan
-                glow.setAttribute('alphaTest', '0.8');   // Back to dim
+                glow.setAttribute('color', '#355589'); // Back to Cyan
+                glow.setAttribute('alphaTest', '0.3');   // Back to dim
             }
           }
 
@@ -288,7 +291,10 @@ if (foundTarget !== this.activeTarget) {
             
             // Keep Core White (or make it yellow/red if you prefer)
             const core = foundTarget.querySelector('.text-core'); 
-            if (core) core.setAttribute('color', '#FFFFFF');
+            if (core) { 
+                core.setAttribute('color', '#FFFFFF'); // Active Red
+                core.setAttribute('alphaTest', '1.0');   // Full brightness
+            }
             
             // Turn Glow RED and MAX BRIGHTNESS
             const glow = foundTarget.querySelector('.text-glow'); 
@@ -352,10 +358,10 @@ if (foundTarget !== this.activeTarget) {
         width="30" height="30" position="0 0 -0.02"></a-plane>
 
       <a-entity position="0 0 0">
-         <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #444455"></a-plane>
-         <a-plane position="0 -0.31 0" width="1.04" height="0.02" material="shader: flat; color: #444455"></a-plane>
-         <a-plane position="-0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #444455"></a-plane>
-         <a-plane position="0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #444455"></a-plane>
+         <a-plane position="0 0.305 0" width="1.045" height="0.03" material="shader: flat; color: #444455"></a-plane>
+         <a-plane position="0 -0.305 0" width="1.045" height="0.03" material="shader: flat; color: #444455"></a-plane>
+         <a-plane position="-0.505 0 0" width="0.03" height="0.64" material="shader: flat; color: #444455"></a-plane>
+         <a-plane position="0.505 0 0" width="0.03" height="0.64" material="shader: flat; color: #444455"></a-plane>
       </a-entity>
 
       <a-entity 
@@ -369,25 +375,25 @@ if (foundTarget !== this.activeTarget) {
       <a-entity position="0 0.7 0.2" rotation="30 0 0" scale="1.5 1.5 1.5" 
                 class="selectable" data-url="https://ch.linkedin.com/in/aespinel">
         <a-text class="text-core" value="PROFILE" mixin="font-core" align="center" color="#FFFFFF"></a-text>
-        <a-text class="text-glow" value="PROFILE" mixin="font-glow" align="center" color="#B0C4DE" position="0 0.02 -0.005"></a-text>
+        <a-text class="text-glow" value="PROFILE" mixin="font-glow" align="center" color="#355589" position="0 0.02 -0.005"></a-text>
       </a-entity>
 
       <a-entity position="0.8 0 0.2" rotation="0 -30 90" scale="1.5 1.5 1.5"
                 class="selectable" data-url="https://github.com/augusto-espinel">
         <a-text class="text-core" value="PROJECTS" mixin="font-core" align="center" color="#FFFFFF"></a-text>
-        <a-text class="text-glow" value="PROJECTS" mixin="font-glow" align="center" color="#B0C4DE" position="0.02 0 -0.005"></a-text>
+        <a-text class="text-glow" value="PROJECTS" mixin="font-glow" align="center" color="#355589" position="0.02 0 -0.005"></a-text>
       </a-entity>
 
-      <a-entity position="-0.8 0 0.2" rotation="0 30 90" scale="1.5 1.5 1.5" 
+      <a-entity position="-0.9 0 0.2" rotation="0 30 90" scale="1.5 1.5 1.5" 
                 class="selectable" data-url="https://substack.com/@epsilen">
         <a-text class="text-core" value="SUBSTACK" mixin="font-core" align="center" color="#FFFFFF"></a-text>
-        <a-text class="text-glow" value="SUBSTACK" mixin="font-glow" align="center" color="#B0C4DE" position="-0.02 0 -0.005"></a-text>
+        <a-text class="text-glow" value="SUBSTACK" mixin="font-glow" align="center" color="#355589" position="-0.02 0 -0.005"></a-text>
       </a-entity>
 
       <a-entity position="0 -0.7 0.2" rotation="-30 0 0" scale="1.5 1.5 1.5" 
                 class="selectable" data-url="#save-contact">
         <a-text class="text-core" value="CONTACT" mixin="font-core" align="center" color="#FFFFFF"></a-text>
-        <a-text class="text-glow" value="CONTACT" mixin="font-glow" align="center" color="#B0C4DE" opacity="0.8" position="0 -0.02 -0.005"></a-text>
+        <a-text class="text-glow" value="CONTACT" mixin="font-glow" align="center" color="#355589" opacity="0.8" position="0 -0.02 -0.005"></a-text>
       </a-entity>
 
     </a-entity>
