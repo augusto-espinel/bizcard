@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TRON AR - Drone Swarm</title>
+  <title>Augusto Espinel Porras - AR Contact Card</title>
   
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
@@ -253,7 +253,7 @@ AFRAME.registerComponent('drone-swarm', {
         const camComponent = this.camera.components.camera;
         if (!camComponent || !camComponent.camera) return;
         const threeCamera = camComponent.camera;
-        let closestDist = 0.5; let foundTarget = null;
+        let closestDist = 0.4; let foundTarget = null;
         this.targets.forEach((target) => {
           target.object3D.getWorldPosition(this.vector);
           this.vector.project(threeCamera);
@@ -262,18 +262,45 @@ AFRAME.registerComponent('drone-swarm', {
             if (dist < closestDist) { closestDist = dist; foundTarget = target; }
           }
         });
-        if (foundTarget !== this.activeTarget) {
+if (foundTarget !== this.activeTarget) {
+          
+          // --- 1. DE-SELECT (The button you just looked away from) ---
           if (this.activeTarget) {
+            // Shrink back to normal size
             this.activeTarget.setAttribute('scale', '1.5 1.5 1.5');
-            const core = this.activeTarget.querySelector('.text-core'); if (core) core.setAttribute('color', '#B0C4DE');
-            const glow = this.activeTarget.querySelector('.text-glow'); if (glow) { glow.setAttribute('color', '#B0C4DE'); glow.setAttribute('opacity', '0.2'); }
+            
+            // Reset Core to White
+            const core = this.activeTarget.querySelector('.text-core'); 
+            if (core) core.setAttribute('color', '#FFFFFF');
+            
+            // Reset Glow to Cyan (Idle state) and Low Opacity
+            const glow = this.activeTarget.querySelector('.text-glow'); 
+            if (glow) { 
+                glow.setAttribute('color', '#B0C4DE'); // Back to Cyan
+                glow.setAttribute('opacity', '0.8');   // Back to dim
+            }
           }
+
+          // --- 2. SELECT (The button you are looking at now) ---
           if (foundTarget) {
-            foundTarget.setAttribute('scale', '1.5 1.5 1.5');
-            const core = foundTarget.querySelector('.text-core'); if (core) core.setAttribute('color', '#FFFFFF');
-            const glow = foundTarget.querySelector('.text-glow'); if (glow) { glow.setAttribute('color', '#FF0000'); glow.setAttribute('opacity', '0.9'); }
+            // Grow slightly ("Pop" effect)
+            foundTarget.setAttribute('scale', '1.8 1.8 1.8');
+            
+            // Keep Core White (or make it yellow/red if you prefer)
+            const core = foundTarget.querySelector('.text-core'); 
+            if (core) core.setAttribute('color', '#FFFFFF');
+            
+            // Turn Glow RED and MAX BRIGHTNESS
+            const glow = foundTarget.querySelector('.text-glow'); 
+            if (glow) { 
+                glow.setAttribute('color', '#DD0000'); // Active Red
+                glow.setAttribute('opacity', '1.0');   // Full brightness
+            }
+            
+            // Haptic feedback (Phone vibration)
             if(window.navigator.vibrate) window.navigator.vibrate(20);
           }
+          
           this.activeTarget = foundTarget;
         }
       }
@@ -300,9 +327,20 @@ AFRAME.registerComponent('drone-swarm', {
     device-orientation-permission-ui="enabled: false">
 
     <a-assets>
-      <a-mixin id="label-font"
-               text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/orbitron/Orbitron-Bold.json; 
-                     shader: msdf; align: center; width: 4; negate: true"> </a-mixin>
+      <a-mixin id="font-core"
+                text="font: exo2bold; 
+                      shader: msdf; 
+                      align: center; 
+                      width: 4; 
+                      negate: false; 
+                      alphaTest: 0.6"> </a-mixin>
+        <a-mixin id="font-glow"
+                text="font: exo2bold; 
+                      shader: msdf; 
+                      align: center; 
+                      width: 4; 
+                      negate: false; 
+                      alphaTest: 0.1;  opacity: 0.5">   </a-mixin>
       <a-asset-item id="illusion-model" src="./illusion_swarm.glb"></a-asset-item>
     </a-assets>
 
@@ -313,7 +351,7 @@ AFRAME.registerComponent('drone-swarm', {
       <a-plane shader-clock material="shader: spillover-tunnel; color: #1C2D5F; transparent: true; opacity: 1.0" 
         width="30" height="30" position="0 0 -0.02"></a-plane>
 
-      <a-entity position="0 0 0.01">
+      <a-entity position="0 0 0">
          <a-plane position="0 0.31 0" width="1.04" height="0.02" material="shader: flat; color: #444455"></a-plane>
          <a-plane position="0 -0.31 0" width="1.04" height="0.02" material="shader: flat; color: #444455"></a-plane>
          <a-plane position="-0.51 0 0" width="0.02" height="0.64" material="shader: flat; color: #444455"></a-plane>
@@ -328,28 +366,28 @@ AFRAME.registerComponent('drone-swarm', {
         scale="0.017 0.017 0.017"> 
       </a-entity>
 
-      <a-entity position="0 0.8 0.2" rotation="30 0 0" scale="1.5 1.5 1.5" 
+      <a-entity position="0 0.7 0.2" rotation="30 0 0" scale="1.5 1.5 1.5" 
                 class="selectable" data-url="https://ch.linkedin.com/in/aespinel">
-        <a-text class="text-glow" value="PROFILE" mixin="label-font" color="#B0C4DE" opacity="0.2" position="0 0.02 -0.005"></a-text>
-        <a-text class="text-core" value="PROFILE" mixin="label-font" color="#B0C4DE"></a-text>
+        <a-text class="text-core" value="PROFILE" mixin="font-core" align="center" color="#FFFFFF"></a-text>
+        <a-text class="text-glow" value="PROFILE" mixin="font-glow" align="center" color="#B0C4DE" opacity="0.8" position="0 0.02 -0.005"></a-text>
       </a-entity>
 
-      <a-entity position="1.1 0 0.3" rotation="0 -30 0" scale="1.5 1.5 1.5"
+      <a-entity position="0.8 0 0.2" rotation="0 -30 90" scale="1.5 1.5 1.5"
                 class="selectable" data-url="https://github.com/augusto-espinel">
-        <a-text class="text-glow" value="PROJECTS" mixin="label-font" color="#B0C4DE" opacity="0.2" position="0.02 0 -0.005"></a-text>
-        <a-text class="text-core" value="PROJECTS" mixin="label-font" color="#B0C4DE"></a-text>
+        <a-text class="text-core" value="PROJECTS" mixin="font-core" align="center" color="#FFFFFF"></a-text>
+        <a-text class="text-glow" value="PROJECTS" mixin="font-glow" align="center" color="#B0C4DE" opacity="0.8" position="0.02 0 -0.005"></a-text>
       </a-entity>
 
-      <a-entity position="-1.2 0 0.3" rotation="0 30 0" scale="1.5 1.5 1.5" 
+      <a-entity position="-0.8 0 0.2" rotation="0 30 90" scale="1.5 1.5 1.5" 
                 class="selectable" data-url="https://substack.com/@epsilen">
-        <a-text class="text-glow" value="SUBSTACK" mixin="label-font" align="center" color="#B0C4DE" opacity="0.2" position="-0.02 0 -0.005"></a-text>
-        <a-text class="text-core" value="SUBSTACK" mixin="label-font" align="center" color="#B0C4DE"></a-text>
+        <a-text class="text-core" value="SUBSTACK" mixin="font-core" align="center" color="#FFFFFF"></a-text>
+        <a-text class="text-glow" value="SUBSTACK" mixin="font-glow" align="center" color="#B0C4DE" opacity="0.8" position="-0.02 0 -0.005"></a-text>
       </a-entity>
 
-      <a-entity position="0 -0.8 0.2" rotation="-30 0 0" scale="1.5 1.5 1.5" 
+      <a-entity position="0 -0.7 0.2" rotation="-30 0 0" scale="1.5 1.5 1.5" 
                 class="selectable" data-url="#save-contact">
-        <a-text class="text-glow" value="CONTACT" mixin="label-font" align="center" color="#B0C4DE" opacity="0.2" position="0 -0.02 -0.005"></a-text>
-        <a-text class="text-core" value="CONTACT" mixin="label-font" align="center" color="#B0C4DE"></a-text>
+        <a-text class="text-core" value="CONTACT" mixin="font-core" align="center" color="#FFFFFF"></a-text>
+        <a-text class="text-glow" value="CONTACT" mixin="font-glow" align="center" color="#B0C4DE" opacity="0.8" position="0 -0.02 -0.005"></a-text>
       </a-entity>
 
     </a-entity>
