@@ -90,6 +90,44 @@
 
     AFRAME.registerComponent('shader-clock', { tick: function (time, timeDelta) { const mesh = this.el.getObject3D('mesh'); if(mesh && mesh.material.uniforms) mesh.material.uniforms.time.value = time / 1000; } });
 
+    // --- GENERATES A ROUNDED BORDER TEXTURE ---
+    AFRAME.registerComponent('canvas-border', {
+      init: function() {
+        // 1. Create a canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; 
+        canvas.height = 128; // 4:1 Aspect Ratio
+        const ctx = canvas.getContext('2d');
+
+        // 2. Draw Rounded Rectangle (White)
+        ctx.strokeStyle = '#FFFFFF'; 
+        ctx.lineWidth = 8;        // Thickness of the border
+        ctx.shadowBlur = 20;       // Glow effect baked in
+        ctx.shadowColor = '#FFFFFF';
+        
+        // Math for rounded corners
+        const x = 20, y = 20, w = 472, h = 88, r = 30;
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.stroke();
+
+        // 3. Apply to the Plane
+        const texture = new THREE.CanvasTexture(canvas);
+        const mesh = this.el.getObject3D('mesh');
+        mesh.material.map = texture;
+        mesh.material.transparent = true;
+        mesh.material.alphaTest = 0.1;
+      }
+    });
+
     AFRAME.registerComponent('ui-logic', {
       init: function() {
         document.getElementById('start-btn').addEventListener('click', () => {
@@ -253,7 +291,7 @@ AFRAME.registerComponent('drone-swarm', {
         const camComponent = this.camera.components.camera;
         if (!camComponent || !camComponent.camera) return;
         const threeCamera = camComponent.camera;
-        let closestDist = 0.4; let foundTarget = null;
+        let closestDist = 0.2; let foundTarget = null;
         this.targets.forEach((target) => {
           target.object3D.getWorldPosition(this.vector);
           this.vector.project(threeCamera);
@@ -267,40 +305,40 @@ if (foundTarget !== this.activeTarget) {
           // --- 1. DE-SELECT (The button you just looked away from) ---
           if (this.activeTarget) {
             // Shrink back to normal size
-            this.activeTarget.setAttribute('scale', '1.5 1.5 1.5');
+            this.activeTarget.setAttribute('scale', '1.2 1.2 1.2');
             
             // Reset Core to White
             const core = this.activeTarget.querySelector('.text-core'); 
             if (core) { 
                 core.setAttribute('color', '#FFFFFF'); // Active Red
-                core.setAttribute('alphaTest', '0.8');   // Full brightness
+                core.setAttribute('opacity', '0.7');   // Full brightness
             }
             
             // Reset Glow to Cyan (Idle state) and Low Opacity
             const glow = this.activeTarget.querySelector('.text-glow'); 
             if (glow) { 
                 glow.setAttribute('color', '#355589'); // Back to Cyan
-                glow.setAttribute('alphaTest', '0.3');   // Back to dim
+                glow.setAttribute('opacity', '0.6');   // Back to dim
             }
           }
 
           // --- 2. SELECT (The button you are looking at now) ---
           if (foundTarget) {
             // Grow slightly ("Pop" effect)
-            foundTarget.setAttribute('scale', '1.8 1.8 1.8');
+            foundTarget.setAttribute('scale', '1.4 1.4 1.4');
             
             // Keep Core White (or make it yellow/red if you prefer)
             const core = foundTarget.querySelector('.text-core'); 
             if (core) { 
                 core.setAttribute('color', '#FFFFFF'); // Active Red
-                core.setAttribute('alphaTest', '1.0');   // Full brightness
+                core.setAttribute('opacity', '0.9');   // Full brightness
             }
             
             // Turn Glow RED and MAX BRIGHTNESS
             const glow = foundTarget.querySelector('.text-glow'); 
             if (glow) { 
                 glow.setAttribute('color', '#DD0000'); // Active Red
-                glow.setAttribute('alphaTest', '1.0');   // Full brightness
+                glow.setAttribute('opacity', '0.7');   // Full brightness
             }
             
             // Haptic feedback (Phone vibration)
@@ -334,18 +372,18 @@ if (foundTarget !== this.activeTarget) {
 
     <a-assets>
       <a-mixin id="font-core"
-                text="font: exo2bold; 
+                text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/rajdhani/Rajdhani-Bold.json;
                       shader: msdf; 
                       align: center; 
                       width: 4; 
-                      negate: false; 
+                      negate: true; 
                       alphaTest: 0.8"> </a-mixin>
         <a-mixin id="font-glow"
-                text="font: exo2bold; 
+                text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/rajdhani/Rajdhani-Bold.json;
                       shader: msdf; 
                       align: center; 
                       width: 4; 
-                      negate: false; 
+                      negate: true; 
                       alphaTest: 0.3;  opacity: 0.8">   </a-mixin>
       <a-asset-item id="illusion-model" src="./illusion_swarm.glb"></a-asset-item>
     </a-assets>
@@ -372,28 +410,36 @@ if (foundTarget !== this.activeTarget) {
         scale="0.017 0.017 0.017"> 
       </a-entity>
 
-      <a-entity position="0 0.7 0.2" rotation="30 0 0" scale="1.5 1.5 1.5" 
+      <a-entity position="0 0.6 0.2" rotation="30 0 0" scale="1.2 1.2 1.2" 
                 class="selectable" data-url="https://ch.linkedin.com/in/aespinel">
-        <a-text class="text-core" value="PROFILE" mixin="font-core" align="center" color="#FFFFFF"></a-text>
-        <a-text class="text-glow" value="PROFILE" mixin="font-glow" align="center" color="#355589" position="0 0.02 -0.005"></a-text>
+        <a-plane class="button-border" canvas-border width="1" height="0.3" position="0 0.14 -0.01"
+                   material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
+        <a-text class="text-core" value="PROFILE" mixin="font-core" align="center" color="#FFFFFF" opacity="0.7"></a-text>
+        <a-text class="text-glow" value="PROFILE" mixin="font-glow" align="center" color="#355589" opacity="0.6" position="0 0.02 -0.005"></a-text>
       </a-entity>
 
-      <a-entity position="0.8 0 0.2" rotation="0 -30 90" scale="1.5 1.5 1.5"
+      <a-entity position="1 0 0.2" rotation="0 -30 90" scale="1.2 1.2 1.2"
                 class="selectable" data-url="https://github.com/augusto-espinel">
-        <a-text class="text-core" value="PROJECTS" mixin="font-core" align="center" color="#FFFFFF"></a-text>
-        <a-text class="text-glow" value="PROJECTS" mixin="font-glow" align="center" color="#355589" position="0.02 0 -0.005"></a-text>
+        <a-plane class="button-border" canvas-border width="1" height="0.3" position="0 0.13 -0.01"
+                   material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
+        <a-text class="text-core" value="PROJECTS" mixin="font-core" align="center" color="#FFFFFF" opacity="0.7"></a-text>
+        <a-text class="text-glow" value="PROJECTS" mixin="font-glow" align="center" color="#355589" opacity="0.6" position="0 -0.02 -0.005"></a-text>
       </a-entity>
 
-      <a-entity position="-0.9 0 0.2" rotation="0 30 90" scale="1.5 1.5 1.5" 
+      <a-entity position="-0.7 0 0.2" rotation="0 30 90" scale="1.2 1.2 1.2" 
                 class="selectable" data-url="https://substack.com/@epsilen">
-        <a-text class="text-core" value="SUBSTACK" mixin="font-core" align="center" color="#FFFFFF"></a-text>
-        <a-text class="text-glow" value="SUBSTACK" mixin="font-glow" align="center" color="#355589" position="-0.02 0 -0.005"></a-text>
+        <a-plane class="button-border" canvas-border width="1" height="0.3" position="0 0.13 -0.01"
+                   material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
+        <a-text class="text-core" value="SUBSTACK" mixin="font-core" align="center" color="#FFFFFF" opacity="0.7"></a-text>
+        <a-text class="text-glow" value="SUBSTACK" mixin="font-glow" align="center" color="#355589" opacity="0.6" position="0 0.02 -0.005"></a-text>
       </a-entity>
 
-      <a-entity position="0 -0.7 0.2" rotation="-30 0 0" scale="1.5 1.5 1.5" 
+      <a-entity position="0 -0.8 0.2" rotation="-30 0 0" scale="1.2 1.2 1.2" 
                 class="selectable" data-url="#save-contact">
-        <a-text class="text-core" value="CONTACT" mixin="font-core" align="center" color="#FFFFFF"></a-text>
-        <a-text class="text-glow" value="CONTACT" mixin="font-glow" align="center" color="#355589" opacity="0.8" position="0 -0.02 -0.005"></a-text>
+        <a-plane class="button-border" canvas-border width="1" height="0.3" position="0 0.12 -0.01"
+                   material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
+        <a-text class="text-core" value="CONTACT" mixin="font-core" align="center" color="#FFFFFF" opacity="0.7"></a-text>
+        <a-text class="text-glow" value="CONTACT" mixin="font-glow" align="center" color="#355589" opacity="0.6" position="0 -0.02 -0.005"></a-text>
       </a-entity>
 
     </a-entity>
