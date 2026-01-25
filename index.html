@@ -9,7 +9,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&amp;family=Share+Tech+Mono&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 
   <style>
     body { margin: 0; overflow: hidden; background: #000; font-family: 'Share Tech Mono', monospace; }
@@ -50,6 +50,27 @@
   </style>
 
   <script>
+    // --- AUDIO SYSTEM (Procedural Sci-Fi Sounds) ---
+    AFRAME.registerComponent('synth-sounds', {
+      init: function() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      },
+      playTone: function(freq, type, duration) {
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.00001, this.ctx.currentTime + duration);
+        osc.stop(this.ctx.currentTime + duration);
+      },
+      blip: function() { this.playTone(800, 'sine', 0.1); },  // Hover Sound
+      click: function() { this.playTone(1200, 'square', 0.15); } // Select Sound
+    });
+
     window.triggerContactDownload = function() {
       console.log("Generating Contact Card...");
       const vCardData = [
@@ -90,22 +111,21 @@
 
     AFRAME.registerComponent('shader-clock', { tick: function (time, timeDelta) { const mesh = this.el.getObject3D('mesh'); if(mesh && mesh.material.uniforms) mesh.material.uniforms.time.value = time / 1000; } });
 
-    // --- GENERATES A ROUNDED BORDER TEXTURE ---
+    // --- GENERATES A ROUNDED BORDER TEXTURE (WITH GLASS FILL) ---
     AFRAME.registerComponent('canvas-border', {
       init: function() {
-        // 1. Create a canvas
         const canvas = document.createElement('canvas');
-        canvas.width = 512; 
-        canvas.height = 128; // 4:1 Aspect Ratio
+        canvas.width = 512; canvas.height = 128; 
         const ctx = canvas.getContext('2d');
 
-        // 2. Draw Rounded Rectangle (White)
         ctx.strokeStyle = '#FFFFFF'; 
-        ctx.lineWidth = 8;        // Thickness of the border
-        ctx.shadowBlur = 20;       // Glow effect baked in
+        ctx.lineWidth = 10;        
+        ctx.shadowBlur = 20;       
         ctx.shadowColor = '#FFFFFF';
         
-        // Math for rounded corners
+        // Glass Fill
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; // 15% opacity fill
+
         const x = 20, y = 20, w = 472, h = 88, r = 30;
         ctx.beginPath();
         ctx.moveTo(x + r, y);
@@ -117,14 +137,15 @@
         ctx.quadraticCurveTo(x, y + h, x, y + h - r);
         ctx.lineTo(x, y + r);
         ctx.quadraticCurveTo(x, y, x + r, y);
-        ctx.stroke();
+        
+        ctx.fill();   // Draw Glass
+        ctx.stroke(); // Draw Border
 
-        // 3. Apply to the Plane
         const texture = new THREE.CanvasTexture(canvas);
         const mesh = this.el.getObject3D('mesh');
         mesh.material.map = texture;
         mesh.material.transparent = true;
-        mesh.material.alphaTest = 0.1;
+        mesh.material.alphaTest = 0.01; // Allow transparency
       }
     });
 
@@ -133,146 +154,124 @@
         document.getElementById('start-btn').addEventListener('click', () => {
           document.getElementById('overlay').style.display = 'none';
           document.getElementById('contact-btn').style.display = 'block';
+          
+          // Wake up Audio Context on user gesture
+          const synth = document.querySelector('a-scene').components['synth-sounds'];
+          if(synth && synth.ctx) synth.ctx.resume();
         });
         document.getElementById('contact-btn').addEventListener('click', () => { window.triggerContactDownload(); });
       }
     });
 
-// --- EXACT PROPORTION SWARM (Preserves Logo Shape) ---
-AFRAME.registerComponent('drone-swarm', {
-  init: function() {
-    this.drones = [];
-    this.timer = 0;       
-    
-    const scene = document.querySelector('a-scene').object3D;
-    const light = new THREE.DirectionalLight(0xffffff, 2.0);
-    light.position.set(1, 1, 2);
-    scene.add(light);
+    // --- EXACT PROPORTION SWARM (Preserves Logo Shape) ---
+    AFRAME.registerComponent('drone-swarm', {
+      init: function() {
+        this.drones = [];
+        this.timer = 0;       
+        
+        const scene = document.querySelector('a-scene').object3D;
+        const light = new THREE.DirectionalLight(0xffffff, 2.0);
+        light.position.set(1, 1, 2);
+        scene.add(light);
 
-    this.el.addEventListener('model-loaded', () => {
-      const originalObj = this.el.getObject3D('mesh');
-      if (!originalObj) return;
+        this.el.addEventListener('model-loaded', () => {
+          const originalObj = this.el.getObject3D('mesh');
+          if (!originalObj) return;
 
-      const pieces = [];
-      originalObj.traverse((node) => { if (node.isMesh) pieces.push(node); });
+          const pieces = [];
+          originalObj.traverse((node) => { if (node.isMesh) pieces.push(node); });
+          
+          console.log(`Swarm: Loaded ${pieces.length} drones.`);
+
+          pieces.forEach((original, index) => {
+            original.visible = false; 
+
+            // 1. TRUST THE GLB
+            const fixedGeo = original.geometry.clone();
+            
+            // 2. MATERIALS
+            const bodyMat = new THREE.MeshStandardMaterial({
+              color: 0x550000, metalness: 0.9, roughness: 0.2, side: THREE.DoubleSide
+            });
+            const droneMesh = new THREE.Mesh(fixedGeo, bodyMat);
+            
+            const wireMat = new THREE.MeshBasicMaterial({
+              color: 0xFF0000, wireframe: true, transparent: true, opacity: 0.8
+            });
+            const wireMesh = new THREE.Mesh(fixedGeo, wireMat);
+            droneMesh.add(wireMesh);
+
+            // 3. ATTACH TO CARD
+            this.el.object3D.add(droneMesh);
+            
+            // 4. ROTATION
+            const baseQuat = original.quaternion.clone();
+            droneMesh.quaternion.copy(baseQuat);
+
+            // 5. SCALE (200x)
+            const finalScale = 200.0; 
+            droneMesh.scale.set(finalScale, finalScale, finalScale);
+            
+            // 6. POSITION
+            const originalPos = original.position.clone();
+            originalPos.multiplyScalar(finalScale);
+            originalPos.z += 10.0;
+
+            this.drones.push({
+              mesh: droneMesh,
+              baseQuat: baseQuat, 
+              basePos: originalPos, 
+              isSpinning: false,
+              spinProgress: 0,
+              spinAxis: new THREE.Vector3(0, 1, 0) 
+            });
+          });
+        });
+      },
       
-      console.log(`Swarm: Loaded ${pieces.length} drones. Preserving original proportions.`);
-
-      pieces.forEach((original, index) => {
-        original.visible = false; 
-
-        // 1. GEOMETRY (TRUST THE GLB)
-        // We clone it to be safe, but we DO NOT center or resize it.
-        // This preserves the "offset" of the vertices relative to the pivot.
-        const fixedGeo = original.geometry.clone();
-        
-        // 2. MATERIALS
-        const bodyMat = new THREE.MeshStandardMaterial({
-          color: 0x550000, metalness: 0.9, roughness: 0.2, side: THREE.DoubleSide
-        });
-        const droneMesh = new THREE.Mesh(fixedGeo, bodyMat);
-        
-        const wireMat = new THREE.MeshBasicMaterial({
-          color: 0xFF0000, wireframe: true, transparent: true, opacity: 0.8
-        });
-        const wireMesh = new THREE.Mesh(fixedGeo, wireMat);
-        droneMesh.add(wireMesh);
-
-        // 3. ATTACH TO CARD
-        this.el.object3D.add(droneMesh);
-        
-        // 4. ROTATION (Copy Original)
-        const baseQuat = original.quaternion.clone();
-        droneMesh.quaternion.copy(baseQuat);
-
-        // 5. SCALE (Global Multiplier)
-        // We apply this scale to the MESH, not the geometry.
-        // This scales the size of the piece AND its distance from center equally.
-        const finalScale = 200.0; 
-        droneMesh.scale.set(finalScale, finalScale, finalScale);
-        
-        // 6. POSITION (Scaled Offset)
-        // We take the local position from the GLB
-        const originalPos = original.position.clone();
-        
-        // We multiply the position by our scale factor so the chunks move apart 
-        // by the exact same amount that they grew in size.
-        originalPos.multiplyScalar(finalScale);
-
-        // Lift it up (Z-axis relative to card)
-        originalPos.z += 10.0;
-
-        this.drones.push({
-          mesh: droneMesh,
-          baseQuat: baseQuat, 
-          basePos: originalPos, 
-
-          // Spin Data
-          isSpinning: false,
-          spinProgress: 0,
-          spinAxis: new THREE.Vector3(0, 1, 0) 
-        });
-      });
-    });
-  },
-  
-  tick: function(time, timeDelta) {
-    if (this.drones.length === 0) return;
-
-    // --- 1. TIMER (Every 4 Seconds) ---
-    this.timer += timeDelta;
-    if (this.timer > 8000) {  
-        this.timer = 0;
-        this.triggerSpin();
-    }
-
-    this.drones.forEach(drone => {
-        // --- A. POSITION (Locked) ---
-        drone.mesh.position.copy(drone.basePos);
-
-        // --- B. SPIN ANIMATION ---
-        if (drone.isSpinning) {
-            drone.spinProgress += 0.004; 
-
-            if (drone.spinProgress >= 1.0) {
-                // HARD RESET: Ensure it snaps 100% back to original
-                drone.spinProgress = 0;
-                drone.isSpinning = false;
-                drone.mesh.quaternion.copy(drone.baseQuat); 
-            } else {
-                const t = drone.spinProgress;
-                // Smoother Ease (Cubic)
-                const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-                const angle = ease * (Math.PI * 4); // 720 degrees
-
-                const spinQuat = new THREE.Quaternion();
-                spinQuat.setFromAxisAngle(drone.spinAxis, angle);
-
-                // Apply rotation ON TOP of the base
-                drone.mesh.quaternion.copy(drone.baseQuat).multiply(spinQuat);
-            }
+      tick: function(time, timeDelta) {
+        if (this.drones.length === 0) return;
+        this.timer += timeDelta;
+        if (this.timer > 8000) {  
+            this.timer = 0;
+            this.triggerSpin();
         }
-    });
-  },
 
-  triggerSpin: function() {
-    this.drones.forEach(drone => {
-        drone.isSpinning = true;
-        drone.spinProgress = 0;
+        this.drones.forEach(drone => {
+            drone.mesh.position.copy(drone.basePos);
+            if (drone.isSpinning) {
+                drone.spinProgress += 0.004; 
+                if (drone.spinProgress >= 1.0) {
+                    drone.spinProgress = 0;
+                    drone.isSpinning = false;
+                    drone.mesh.quaternion.copy(drone.baseQuat); 
+                } else {
+                    const t = drone.spinProgress;
+                    const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                    const angle = ease * (Math.PI * 4); 
+                    const spinQuat = new THREE.Quaternion();
+                    spinQuat.setFromAxisAngle(drone.spinAxis, angle);
+                    drone.mesh.quaternion.copy(drone.baseQuat).multiply(spinQuat);
+                }
+            }
+        });
+      },
 
-        // Random Axis
-        const r = Math.random();
-        if (r < 0.33) drone.spinAxis.set(1, 0, 0);       
-        else if (r < 0.66) drone.spinAxis.set(0, 1, 0);  
-        else drone.spinAxis.set(0, 0, 1);                
-        
-        drone.spinAxis.x += (Math.random() - 0.5) * 0.5;
-        drone.spinAxis.y += (Math.random() - 0.5) * 0.5;
-        drone.spinAxis.z += (Math.random() - 0.5) * 0.5;
-        drone.spinAxis.normalize();
+      triggerSpin: function() {
+        this.drones.forEach(drone => {
+            drone.isSpinning = true;
+            drone.spinProgress = 0;
+            const r = Math.random();
+            if (r < 0.33) drone.spinAxis.set(1, 0, 0);       
+            else if (r < 0.66) drone.spinAxis.set(0, 1, 0);  
+            else drone.spinAxis.set(0, 0, 1);                
+            drone.spinAxis.x += (Math.random() - 0.5) * 0.5;
+            drone.spinAxis.y += (Math.random() - 0.5) * 0.5;
+            drone.spinAxis.z += (Math.random() - 0.5) * 0.5;
+            drone.spinAxis.normalize();
+        });
+      }
     });
-  }
-});
 
     AFRAME.registerComponent('screen-center-selector', {
       init: function() {
@@ -280,8 +279,23 @@ AFRAME.registerComponent('drone-swarm', {
         this.targets = Array.from(document.querySelectorAll('.selectable'));
         this.activeTarget = null;
         this.vector = new THREE.Vector3(); 
+        this.synth = this.el.sceneEl.components['synth-sounds'];
+
+        // HELPER: Safely update material without destroying the texture
+        this.updateMat = (el, colorHex, opacity) => {
+            if (!el) return;
+            const mesh = el.getObject3D('mesh');
+            if (mesh && mesh.material) {
+                mesh.material.color.set(colorHex);
+                mesh.material.opacity = opacity;
+                // Ensure transparency stays ON so corners don't turn black/square
+                mesh.material.transparent = true; 
+            }
+        };
+
         window.addEventListener('click', () => {
           if (this.activeTarget) {
+            if(this.synth) this.synth.click();
             const url = this.activeTarget.getAttribute('data-url');
             if (url === '#save-contact') { window.triggerContactDownload(); } else if(url) { window.open(url, '_blank'); }
           }
@@ -300,51 +314,30 @@ AFRAME.registerComponent('drone-swarm', {
             if (dist < closestDist) { closestDist = dist; foundTarget = target; }
           }
         });
-if (foundTarget !== this.activeTarget) {
-          
-          // --- 1. DE-SELECT (The button you just looked away from) ---
+
+        if (foundTarget !== this.activeTarget) {
+          // --- 1. DE-SELECT (Reset) ---
           if (this.activeTarget) {
-            // Shrink back to normal size
-            this.activeTarget.setAttribute('scale', '1.2 1.2 1.2');
+            this.activeTarget.setAttribute('scale', '1.2 1.2 1.2'); 
             
-            // Reset Core to White
-            const core = this.activeTarget.querySelector('.text-core'); 
-            if (core) { 
-                core.setAttribute('color', '#FFFFFF'); // Active Red
-                core.setAttribute('opacity', '0.7');   // Full brightness
-            }
-            
-            // Reset Glow to Cyan (Idle state) and Low Opacity
-            const glow = this.activeTarget.querySelector('.text-glow'); 
-            if (glow) { 
-                glow.setAttribute('color', '#355589'); // Back to Cyan
-                glow.setAttribute('opacity', '0.6');   // Back to dim
-            }
+            // Use helper to safely reset colors
+            this.updateMat(this.activeTarget.querySelector('.text-core'), '#FFFFFF', 0.7);
+            this.updateMat(this.activeTarget.querySelector('.text-glow'), '#355589', 0.6);
+            this.updateMat(this.activeTarget.querySelector('.button-border'), '#b2cede', 0.5);
           }
 
-          // --- 2. SELECT (The button you are looking at now) ---
+          // --- 2. SELECT (Activate) ---
           if (foundTarget) {
-            // Grow slightly ("Pop" effect)
-            foundTarget.setAttribute('scale', '1.4 1.4 1.4');
-            
-            // Keep Core White (or make it yellow/red if you prefer)
-            const core = foundTarget.querySelector('.text-core'); 
-            if (core) { 
-                core.setAttribute('color', '#FFFFFF'); // Active Red
-                core.setAttribute('opacity', '0.9');   // Full brightness
-            }
-            
-            // Turn Glow RED and MAX BRIGHTNESS
-            const glow = foundTarget.querySelector('.text-glow'); 
-            if (glow) { 
-                glow.setAttribute('color', '#DD0000'); // Active Red
-                glow.setAttribute('opacity', '0.7');   // Full brightness
-            }
-            
-            // Haptic feedback (Phone vibration)
+            if(this.synth) this.synth.blip();
             if(window.navigator.vibrate) window.navigator.vibrate(20);
+
+            foundTarget.setAttribute('scale', '1.4 1.4 1.4'); 
+            
+            // Use helper to safely set RED colors
+            this.updateMat(foundTarget.querySelector('.text-core'), '#FFFFFF', 0.9);
+            this.updateMat(foundTarget.querySelector('.text-glow'), '#DD0000', 0.8);
+            this.updateMat(foundTarget.querySelector('.button-border'), '#DD0000', 0.8);
           }
-          
           this.activeTarget = foundTarget;
         }
       }
@@ -362,6 +355,7 @@ if (foundTarget !== this.activeTarget) {
   <div id="crosshair"></div>
 
   <a-scene 
+    synth-sounds
     screen-center-selector
     ui-logic
     mindar-image="imageTargetSrc: ./targets.mind;" 
@@ -372,19 +366,13 @@ if (foundTarget !== this.activeTarget) {
 
     <a-assets>
       <a-mixin id="font-core"
-                text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/rajdhani/Rajdhani-Bold.json;
-                      shader: msdf; 
-                      align: center; 
-                      width: 4; 
-                      negate: true; 
-                      alphaTest: 0.8"> </a-mixin>
-        <a-mixin id="font-glow"
-                text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/rajdhani/Rajdhani-Bold.json;
-                      shader: msdf; 
-                      align: center; 
-                      width: 4; 
-                      negate: true; 
-                      alphaTest: 0.3;  opacity: 0.8">   </a-mixin>
+               text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/rajdhani/Rajdhani-Bold.json;
+                     shader: msdf; align: center;
+                     width: 4; negate: true; alphaTest: 0.8"> </a-mixin>
+      <a-mixin id="font-glow"
+               text="font: https://raw.githubusercontent.com/etiennepinchon/aframe-fonts/master/fonts/rajdhani/Rajdhani-Bold.json;
+                     shader: msdf; align: center;
+                     width: 4; negate: true; alphaTest: 0.3; opacity: 0.8">   </a-mixin>
       <a-asset-item id="illusion-model" src="./illusion_swarm.glb"></a-asset-item>
     </a-assets>
 
@@ -413,15 +401,15 @@ if (foundTarget !== this.activeTarget) {
       <a-entity position="0 0.6 0.2" rotation="30 0 0" scale="1.2 1.2 1.2" 
                 class="selectable" data-url="https://ch.linkedin.com/in/aespinel">
         <a-plane class="button-border" canvas-border width="1" height="0.3" position="0 0.14 -0.01"
-                   material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
+                 material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
         <a-text class="text-core" value="PROFILE" mixin="font-core" align="center" color="#FFFFFF" opacity="0.7"></a-text>
         <a-text class="text-glow" value="PROFILE" mixin="font-glow" align="center" color="#355589" opacity="0.6" position="0 0.02 -0.005"></a-text>
       </a-entity>
 
-      <a-entity position="1 0 0.2" rotation="0 -30 90" scale="1.2 1.2 1.2"
+      <a-entity position="0.7 0 0.2" rotation="0 -30 -90" scale="1.2 1.2 1.2"
                 class="selectable" data-url="https://github.com/augusto-espinel">
         <a-plane class="button-border" canvas-border width="1" height="0.3" position="0 0.13 -0.01"
-                   material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
+                 material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
         <a-text class="text-core" value="PROJECTS" mixin="font-core" align="center" color="#FFFFFF" opacity="0.7"></a-text>
         <a-text class="text-glow" value="PROJECTS" mixin="font-glow" align="center" color="#355589" opacity="0.6" position="0 -0.02 -0.005"></a-text>
       </a-entity>
@@ -429,7 +417,7 @@ if (foundTarget !== this.activeTarget) {
       <a-entity position="-0.7 0 0.2" rotation="0 30 90" scale="1.2 1.2 1.2" 
                 class="selectable" data-url="https://substack.com/@epsilen">
         <a-plane class="button-border" canvas-border width="1" height="0.3" position="0 0.13 -0.01"
-                   material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
+                 material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
         <a-text class="text-core" value="SUBSTACK" mixin="font-core" align="center" color="#FFFFFF" opacity="0.7"></a-text>
         <a-text class="text-glow" value="SUBSTACK" mixin="font-glow" align="center" color="#355589" opacity="0.6" position="0 0.02 -0.005"></a-text>
       </a-entity>
@@ -437,7 +425,7 @@ if (foundTarget !== this.activeTarget) {
       <a-entity position="0 -0.9 0.2" rotation="-30 0 0" scale="1.2 1.2 1.2" 
                 class="selectable" data-url="#save-contact">
         <a-plane class="button-border" canvas-border width="1" height="0.3" position="0 0.12 -0.01"
-                   material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
+                 material="shader: flat; color: #b2cede; opacity: 0.5"></a-plane>
         <a-text class="text-core" value="CONTACT" mixin="font-core" align="center" color="#FFFFFF" opacity="0.7"></a-text>
         <a-text class="text-glow" value="CONTACT" mixin="font-glow" align="center" color="#355589" opacity="0.6" position="0 -0.02 -0.005"></a-text>
       </a-entity>
