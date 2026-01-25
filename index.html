@@ -30,6 +30,12 @@
       box-shadow: 0 0 8px #880000, inset 0 0 4px #880000;
       transition: all 0.3s ease;
     }
+    #start-btn:hover {
+      background: rgba(255, 0, 0, 0.2);       /* Semi-transparent red fill */
+      box-shadow: 0 0 20px #FF0000, inset 0 0 10px #FF0000; /* Intense red glow */
+      transform: scale(1.05);                  /* Grow 5% larger */
+      text-shadow: 0 0 8px #FFFFFF;            /* White text bloom */
+    }
     #start-btn:active { background: #FF0000; box-shadow: 0 0 20px #FF0000; }
     
     #crosshair {
@@ -47,6 +53,58 @@
       display: none; 
     }
     #contact-btn:active { background: #FF0000; color: #000; }
+    #intro-contact-btn {
+      background: transparent;
+      color: #00FFFF;                 /* Cyan Text */
+      font-family: 'Share Tech Mono', monospace; /* Tech Font */
+      font-size: 1rem;
+      padding: 10px 30px;
+      border: 1px solid #00FFFF;      /* Cyan Border */
+      cursor: pointer;
+      margin-top: 15px;               /* Space below the big button */
+      transition: all 0.3s ease;
+      opacity: 0.8;
+    }
+    
+    #intro-contact-btn:hover {
+      background: rgba(0, 255, 255, 0.2);
+      box-shadow: 0 0 10px #00FFFF;
+    }
+
+    .instructions-container {
+      margin: 30px 0;
+      text-align: center;
+      animation: fadeIn 2s ease-out;
+    }
+    
+    .instruction-icon {
+      width: 60px;
+      height: 60px;
+      margin: 0 15px;
+      filter: drop-shadow(0 0 5px #00FFFF); /* Cyan Glow */
+    }
+    
+    .instruction-text {
+      font-family: 'Share Tech Mono', monospace;
+      color: #00FFFF;
+      font-size: 0.9rem;
+      margin-top: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      opacity: 0.8;
+    }
+    
+    .arrow {
+      font-size: 2rem;
+      color: #FFFFFF;
+      vertical-align: middle;
+      opacity: 0.5;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   </style>
 
   <script>
@@ -347,8 +405,38 @@
 <body>
 
   <div id="overlay">
-    <h1>SYSTEM ACCESS</h1>
+    <h1>AE V-CARD</h1>
+    
+    <div class="instructions-container">
+      
+      <div style="display: inline-block; vertical-align: middle;">
+        <svg class="instruction-icon" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.5">
+          <rect x="5" y="2" width="14" height="20" rx="2" stroke="#00FFFF" stroke-opacity="0.5"/>
+          <circle cx="12" cy="12" r="3" stroke="#FFFFFF"/>
+          <line x1="12" y1="5" x2="12" y2="8"/>
+          <line x1="12" y1="16" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="8" y2="12"/>
+          <line x1="16" y1="12" x2="19" y2="12"/>
+        </svg>
+        <div class="instruction-text">1. AIM</div>
+      </div>
+
+      <span class="arrow">&rsaquo;</span>
+
+      <div style="display: inline-block; vertical-align: middle;">
+        <svg class="instruction-icon" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.5">
+          <rect x="5" y="2" width="14" height="20" rx="2" stroke="#00FFFF" stroke-opacity="0.5"/>
+          <circle cx="12" cy="12" r="5" stroke="#FFFFFF" stroke-dasharray="2 2"/>
+          <path d="M14 14l-2-2m0 0l-2 2m2-2v8" stroke="#FFFFFF" stroke-linecap="round"/>
+        </svg>
+        <div class="instruction-text">2. TAP</div>
+      </div>
+
+    </div>
+
     <button id="start-btn">ENTER GRID</button>
+    
+    <button id="intro-contact-btn">DOWNLOAD vCARD</button>
   </div>
 
   <button id="contact-btn">SAVE CONTACT</button>
