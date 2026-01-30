@@ -209,15 +209,26 @@
 
     AFRAME.registerComponent('ui-logic', {
       init: function() {
+        // 1. Start Button (Enters AR)
         document.getElementById('start-btn').addEventListener('click', () => {
           document.getElementById('overlay').style.display = 'none';
           document.getElementById('contact-btn').style.display = 'block';
           
-          // Wake up Audio Context on user gesture
+          // Wake up Audio Context
           const synth = document.querySelector('a-scene').components['synth-sounds'];
           if(synth && synth.ctx) synth.ctx.resume();
         });
+
+        // 2. AR Save Button (Bottom Left)
         document.getElementById('contact-btn').addEventListener('click', () => { window.triggerContactDownload(); });
+
+        // 3. INTRO Save Button (New - WAS MISSING)
+        const introBtn = document.getElementById('intro-contact-btn');
+        if (introBtn) {
+            introBtn.addEventListener('click', () => { 
+                window.triggerContactDownload(); 
+            });
+        }
       }
     });
 
