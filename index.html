@@ -349,32 +349,90 @@
         this.activeTarget = null;
         this.vector = new THREE.Vector3(); 
         this.synth = this.el.sceneEl.components['synth-sounds'];
+        
+        // NEW: Raycaster for detecting direct taps
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
 
-        // HELPER: Safely update material without destroying the texture
+        // HELPER: Safely update material
         this.updateMat = (el, colorHex, opacity) => {
             if (!el) return;
             const mesh = el.getObject3D('mesh');
             if (mesh && mesh.material) {
                 mesh.material.color.set(colorHex);
                 mesh.material.opacity = opacity;
-                // Ensure transparency stays ON so corners don't turn black/square
                 mesh.material.transparent = true; 
             }
         };
 
-        window.addEventListener('click', () => {
-          if (this.activeTarget) {
+        // HELPER: Trigger the link/action
+        this.triggerAction = (el) => {
+            if (!el) return;
             if(this.synth) this.synth.click();
-            const url = this.activeTarget.getAttribute('data-url');
-            if (url === '#save-contact') { window.triggerContactDownload(); } else if(url) { window.open(url, '_blank'); }
+            const url = el.getAttribute('data-url');
+            if (url === '#save-contact') { window.triggerContactDownload(); } 
+            else if(url) { window.open(url, '_blank'); }
+        };
+
+        // CLICK LISTENER (Now handles Direct Taps + Crosshair)
+        window.addEventListener('click', (event) => {
+          // 1. Convert tap position to Normalized Device Coordinates (-1 to +1)
+          this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+          // 2. Cast a ray from the camera to the tap position
+          // Note: We access the underlying Three.js camera object
+          const threeCam = this.camera.getObject3D('camera');
+          if (!threeCam) return;
+          
+          this.raycaster.setFromCamera(this.mouse, threeCam);
+
+          // 3. Check if we hit any of the selectable buttons
+          // We map our A-Frame entities to their Three.js meshes for the check
+          const interactables = this.targets.map(el => el.object3D);
+          const intersects = this.raycaster.intersectObjects(interactables, true);
+
+          if (intersects.length > 0) {
+            // --- CASE A: DIRECT TAP ---
+            // We hit a button mesh! We need to find which "selectable" entity it belongs to.
+            let hitObject = intersects[0].object;
+            
+            // Traverse up the tree until we find the element with class "selectable"
+            let hitEntity = null;
+            // Traverse up to find the A-Frame entity (el)
+            hitObject.traverseAncestors((ancestor) => {
+                if (hitEntity) return; // Already found
+                if (ancestor.el && ancestor.el.classList && ancestor.el.classList.contains('selectable')) {
+                    hitEntity = ancestor.el;
+                }
+            });
+            // If the object itself is the entity (rare but possible)
+            if (!hitEntity && hitObject.el && hitObject.el.classList.contains('selectable')) {
+                hitEntity = hitObject.el;
+            }
+
+            if (hitEntity) {
+                this.triggerAction(hitEntity);
+                return; // Stop here! Don't trigger the activeTarget too.
+            }
+          }
+
+          // --- CASE B: REMOTE TRIGGER (Crosshair) ---
+          // If we didn't tap a button directly, trigger whatever the crosshair is aiming at.
+          if (this.activeTarget) {
+            this.triggerAction(this.activeTarget);
           }
         });
       },
+      
       tick: function() {
         const camComponent = this.camera.components.camera;
         if (!camComponent || !camComponent.camera) return;
         const threeCamera = camComponent.camera;
-        let closestDist = 0.6; let foundTarget = null;
+        
+        let closestDist = 0.6; // Generous hit area for gaze
+        let foundTarget = null;
+        
         this.targets.forEach((target) => {
           target.object3D.getWorldPosition(this.vector);
           this.vector.project(threeCamera);
@@ -385,24 +443,18 @@
         });
 
         if (foundTarget !== this.activeTarget) {
-          // --- 1. DE-SELECT (Reset) ---
+          // DE-SELECT
           if (this.activeTarget) {
             this.activeTarget.setAttribute('scale', '1.2 1.2 1.2'); 
-            
-            // Use helper to safely reset colors
             this.updateMat(this.activeTarget.querySelector('.text-core'), '#FFFFFF', 0.7);
             this.updateMat(this.activeTarget.querySelector('.text-glow'), '#355589', 0.6);
             this.updateMat(this.activeTarget.querySelector('.button-border'), '#b2cede', 0.5);
           }
-
-          // --- 2. SELECT (Activate) ---
+          // SELECT
           if (foundTarget) {
             if(this.synth) this.synth.blip();
             if(window.navigator.vibrate) window.navigator.vibrate(20);
-
             foundTarget.setAttribute('scale', '1.4 1.4 1.4'); 
-            
-            // Use helper to safely set RED colors
             this.updateMat(foundTarget.querySelector('.text-core'), '#FFFFFF', 0.9);
             this.updateMat(foundTarget.querySelector('.text-glow'), '#DD0000', 0.8);
             this.updateMat(foundTarget.querySelector('.button-border'), '#DD0000', 0.8);
